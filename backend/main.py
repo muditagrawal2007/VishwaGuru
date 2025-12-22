@@ -4,9 +4,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
-from backend.database import engine, get_db
-from backend.models import Base, Issue
-from backend.ai_service import generate_action_plan
+from database import engine, get_db
+from models import Base, Issue
+from ai_service import generate_action_plan
 import json
 import os
 import shutil
@@ -15,7 +15,7 @@ import uuid
 import asyncio
 from fastapi import Depends
 from contextlib import asynccontextmanager
-from backend.bot import run_bot
+from bot import run_bot
 
 # Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
