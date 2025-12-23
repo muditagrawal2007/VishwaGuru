@@ -1,7 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from database import engine, get_db
@@ -33,18 +31,33 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="VishwaGuru Backend", lifespan=lifespan)
 
+# CORS Configuration
+# For separate frontend/backend deployment (e.g., Netlify + Render)
+# Set FRONTEND_URL environment variable to your Netlify URL
+# Example: https://your-app.netlify.app
+frontend_url = os.environ.get("FRONTEND_URL", "*")
+allowed_origins = [frontend_url] if frontend_url != "*" else ["*"]
+
 # Allow CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific frontend URL
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+@app.get("/")
+def root():
+    return {
+        "status": "ok",
+        "service": "VishwaGuru API",
+        "version": "1.0.0"
+    }
+
 @app.get("/health")
-def health_check():
-    return {"status": "ok"}
+def health():
+    return {"status": "healthy"}
 
 def save_file_blocking(file_obj, path):
     with open(path, "wb") as buffer:
@@ -113,19 +126,5 @@ def get_responsibility_map():
     except FileNotFoundError:
         return {"error": "Data file not found"}
 
-# Serve Frontend (Must be last)
-# Mount the 'dist' directory as a static directory
-frontend_dist = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
-
-if os.path.exists(frontend_dist):
-    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
-
-    @app.get("/{catchall:path}")
-    async def serve_react_app(catchall: str):
-        # Check if file exists in dist (e.g., favicon.ico)
-        file_path = os.path.join(frontend_dist, catchall)
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-             return FileResponse(file_path)
-
-        # Otherwise return index.html for SPA
-        return FileResponse(os.path.join(frontend_dist, "index.html"))
+# Note: Frontend serving code removed for separate deployment
+# The frontend will be deployed on Netlify and make API calls to this backend

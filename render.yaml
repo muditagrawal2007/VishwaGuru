@@ -1,0 +1,24 @@
+services:
+  # VishwaGuru Backend Service
+  - type: web
+    name: vishwaguru-backend
+    runtime: python
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: PORT
+        fromService:
+          type: web
+          name: vishwaguru-backend
+          property: port
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false  # Must be set in Render dashboard
+      - key: GEMINI_API_KEY
+        sync: false  # Must be set in Render dashboard
+      - key: FRONTEND_URL
+        sync: false  # Set to your Netlify URL (e.g., https://your-app.netlify.app)
+      - key: DATABASE_URL
+        sync: false  # Set to your Neon database connection string
+    healthCheckPath: /health

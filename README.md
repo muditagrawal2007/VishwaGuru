@@ -110,6 +110,42 @@ The Telegram bot runs as part of the FastAPI application lifecycle, so it starts
 *   **AI**: Google Gemini (google-generativeai)
 *   **Bot**: python-telegram-bot
 
+## Deployment
+
+### Architecture: Split Deployment
+
+VishwaGuru uses a modern split deployment architecture:
+- **Frontend**: Deployed on Netlify (Static hosting for React app)
+- **Backend**: Deployed on Render (FastAPI server + Telegram bot + PostgreSQL)
+
+This provides:
+- ✅ Better performance (CDN for frontend)
+- ✅ Independent scaling
+- ✅ Easy rollbacks
+- ✅ Free hosting on both platforms
+
+### Quick Start
+
+See detailed guides:
+- **[Complete Deployment Guide](./DEPLOYMENT_GUIDE.md)** - Step-by-step instructions
+- **[Quick Reference](./QUICK_REFERENCE.md)** - At-a-glance configuration
+
+**TL;DR**:
+
+1. **Backend (Render)**:
+   - Build: `pip install -r backend/requirements.txt`
+   - Start: `python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+   - Add Neon database connection string and set environment variables
+
+2. **Frontend (Netlify)**:
+   - Base: `frontend/`, Build: `npm run build`, Publish: `frontend/dist`
+   - Set `VITE_API_URL` to your Render backend URL
+
+### ❌ Important: Do NOT use these commands
+
+- `python -m bot` - This only starts the Telegram bot, not the web server
+- `./render-build.sh` - This builds frontend too (unnecessary for backend-only deploy)
+
 ## Contributing
 
 1.  Fork the repository.

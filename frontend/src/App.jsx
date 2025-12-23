@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 
+// Get API URL from environment variable, fallback to relative URL for local dev
+const API_URL = import.meta.env.VITE_API_URL || '';
+
 function App() {
   const [view, setView] = useState('home'); // home, map, report, action
   const [responsibilityMap, setResponsibilityMap] = useState(null);
@@ -30,7 +33,7 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/responsibility-map');
+      const response = await fetch(`${API_URL}/api/responsibility-map`);
       if (!response.ok) throw new Error('Failed to fetch data');
       const data = await response.json();
       setResponsibilityMap(data);
@@ -75,7 +78,7 @@ function App() {
       }
 
       try {
-        const response = await fetch('/api/issues', {
+        const response = await fetch(`${API_URL}/api/issues`, {
           method: 'POST',
           body: payload,
         });
