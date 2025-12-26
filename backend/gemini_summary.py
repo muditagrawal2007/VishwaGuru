@@ -4,16 +4,19 @@ Gemini Summary Service for Maharashtra MLA Information
 Uses Gemini AI to generate human-readable summaries about MLAs and their roles.
 """
 import os
-from google import genai
+import google.generativeai as genai
 from typing import Dict, Optional
+import warnings
 from async_lru import alru_cache
+
+# Suppress deprecation warnings from google.generativeai
+warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
 
 # Configure Gemini (reuses existing configuration)
 # Use provided key as fallback if env var is missing
 api_key = os.environ.get("GEMINI_API_KEY", "AIzaSyB8_i3tbDE3GmX4CsQ8G3mD3pB2WrHi5C8")
-client = None
 if api_key:
-    client = genai.Client(api_key=api_key)
+    genai.configure(api_key=api_key)
 
 
 def _get_fallback_summary(mla_name: str, assembly_constituency: str, district: str) -> str:
@@ -54,10 +57,13 @@ async def generate_mla_summary(
     Returns:
         A short paragraph describing the MLA's role and responsibilities
     """
-    if not client:
+    if not api_key:
         return _get_fallback_summary(mla_name, assembly_constituency, district)
     
     try:
+        # Use Gemini 1.5 Flash for faster response times
+        model = genai.GenerativeModel('gemini-1.5-flash')
+
         issue_context = f" particularly regarding {issue_category} issues" if issue_category else ""
         
         prompt = f"""
@@ -70,10 +76,7 @@ async def generate_mla_summary(
         Keep it factual, helpful, and encouraging for civic engagement.
         """
         
-        response = await client.aio.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=prompt
-        )
+        response = await model.generate_content_async(prompt)
         return response.text.strip()
         
     except Exception as e:
