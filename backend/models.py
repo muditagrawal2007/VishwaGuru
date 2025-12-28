@@ -13,4 +13,4 @@ class Issue(Base):
     status = Column(String, default="open")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     user_email = Column(String, nullable=True)
-    upvotes = Column(Integer, default=0)
+    upvotes = Column(Integer, default=0, index=True)

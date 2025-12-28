@@ -5,7 +5,12 @@ from sqlalchemy.orm import Session
 from database import engine, get_db
 from models import Base, Issue
 from ai_service import generate_action_plan, chat_with_civic_assistant
-from maharashtra_locator import find_constituency_by_pincode, find_mla_by_constituency
+from maharashtra_locator import (
+    find_constituency_by_pincode,
+    find_mla_by_constituency,
+    load_maharashtra_pincode_data,
+    load_maharashtra_mla_data
+)
 from pydantic import BaseModel
 from gemini_summary import generate_mla_summary
 import json
@@ -31,6 +36,13 @@ Base.metadata.create_all(bind=engine)
 try:
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE issues ADD COLUMN upvotes INTEGER DEFAULT 0"))
+        # Check if index exists or create it
+        try:
+            conn.execute(text("CREATE INDEX ix_issues_upvotes ON issues (upvotes)"))
+            print("Migrated database: Added index on upvotes column.")
+        except Exception:
+            # Index likely already exists
+            pass
         conn.commit()
         print("Migrated database: Added upvotes column.")
 except Exception as e:
@@ -39,6 +51,15 @@ except Exception as e:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup: Load static data to avoid first-request latency
+    try:
+        # These functions use lru_cache, so calling them once loads the data into memory
+        load_maharashtra_pincode_data()
+        load_maharashtra_mla_data()
+        print("Maharashtra data pre-loaded successfully.")
+    except Exception as e:
+        print(f"Error pre-loading Maharashtra data: {e}")
+
     # Startup: Start Telegram Bot in background (non-blocking)
     bot_task = None
     bot_app = None
