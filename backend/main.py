@@ -228,13 +228,14 @@ async def create_issue(
     image: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
+    image_path = None
+    
     try:
         # Validate uploaded image if provided
         if image:
             validate_uploaded_file(image)
         
         # Save image if provided
-        image_path = None
         if image:
             upload_dir = "data/uploads"
             os.makedirs(upload_dir, exist_ok=True)
@@ -244,7 +245,17 @@ async def create_issue(
 
             # Offload blocking file I/O to threadpool
             await run_in_threadpool(save_file_blocking, image.file, image_path)
+    except HTTPException:
+        # Re-raise HTTP exceptions (from validation)
+        raise
+    except OSError as e:
+        logger.error(f"File I/O error while saving image: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to save uploaded file")
+    except Exception as e:
+        logger.error(f"Unexpected error during file processing: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
+    try:
         # Save to DB
         new_issue = Issue(
             description=description,
@@ -256,18 +267,30 @@ async def create_issue(
 
         # Offload blocking DB operations to threadpool
         await run_in_threadpool(save_issue_db, db, new_issue)
+    except Exception as e:
+        # Clean up uploaded file if DB save failed
+        if image_path and os.path.exists(image_path):
+            try:
+                os.remove(image_path)
+            except OSError:
+                pass  # Ignore cleanup errors
+        
+        logger.error(f"Database error while creating issue: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to save issue to database")
 
+    try:
         # Generate Action Plan (AI)
         action_plan = await generate_action_plan(description, category, image_path)
-
-        return {
-            "id": new_issue.id,
-            "message": "Issue reported successfully",
-            "action_plan": action_plan
-        }
     except Exception as e:
-        logger.error(f"Error creating issue: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"AI service error while generating action plan: {e}", exc_info=True)
+        # Don't fail the entire request - return issue without action plan
+        action_plan = {"error": "Unable to generate action plan at this time"}
+
+    return {
+        "id": new_issue.id,
+        "message": "Issue reported successfully",
+        "action_plan": action_plan
+    }
 
 @app.post("/api/issues/{issue_id}/vote")
 def upvote_issue(issue_id: int, db: Session = Depends(get_db)):
@@ -312,8 +335,12 @@ class ChatRequest(BaseModel):
 
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    response = await chat_with_civic_assistant(request.query)
-    return {"response": response}
+    try:
+        response = await chat_with_civic_assistant(request.query)
+        return {"response": response}
+    except Exception as e:
+        logger.error(f"Chat service error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Chat service temporarily unavailable")
 
 @app.get("/api/issues/recent")
 def get_recent_issues(db: Session = Depends(get_db)):
@@ -360,7 +387,7 @@ async def detect_pothole_endpoint(image: UploadFile = File(...)):
         return {"detections": detections}
     except Exception as e:
         logger.error(f"Pothole detection error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Detection service temporarily unavailable")
 
 @app.post("/api/detect-infrastructure")
 async def detect_infrastructure_endpoint(image: UploadFile = File(...)):
@@ -380,7 +407,7 @@ async def detect_infrastructure_endpoint(image: UploadFile = File(...)):
         return {"detections": detections}
     except Exception as e:
         logger.error(f"Infrastructure detection error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Detection service temporarily unavailable")
 
 @app.post("/api/detect-flooding")
 async def detect_flooding_endpoint(image: UploadFile = File(...)):
@@ -400,7 +427,7 @@ async def detect_flooding_endpoint(image: UploadFile = File(...)):
         return {"detections": detections}
     except Exception as e:
         logger.error(f"Flooding detection error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Detection service temporarily unavailable")
 
 @app.post("/api/detect-vandalism")
 async def detect_vandalism_endpoint(image: UploadFile = File(...)):
@@ -420,7 +447,7 @@ async def detect_vandalism_endpoint(image: UploadFile = File(...)):
         return {"detections": detections}
     except Exception as e:
         logger.error(f"Vandalism detection error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Detection service temporarily unavailable")
 
 @app.post("/api/detect-garbage")
 async def detect_garbage_endpoint(image: UploadFile = File(...)):
@@ -440,7 +467,7 @@ async def detect_garbage_endpoint(image: UploadFile = File(...)):
         return {"detections": detections}
     except Exception as e:
         logger.error(f"Garbage detection error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Detection service temporarily unavailable")
 
 @app.get("/api/mh/rep-contacts")
 async def get_maharashtra_rep_contacts(pincode: str = Query(..., min_length=6, max_length=6)):
