@@ -159,6 +159,9 @@ async def create_issue(
     description: str = Form(...),
     category: str = Form(...),
     user_email: str = Form(None),
+    latitude: float = Form(None),
+    longitude: float = Form(None),
+    location: str = Form(None),
     image: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
@@ -175,21 +178,28 @@ async def create_issue(
             # Offload blocking file I/O to threadpool
             await run_in_threadpool(save_file_blocking, image.file, image_path)
 
+        # Generate Action Plan (AI)
+        ai_services = get_ai_services()
+        action_plan = await ai_services.action_plan_service.generate_action_plan(description, category, image_path)
+
         # Save to DB
         new_issue = Issue(
             description=description,
             category=category,
             image_path=image_path,
             source="web",
-            user_email=user_email
+            user_email=user_email,
+            latitude=latitude,
+            longitude=longitude,
+            location=location,
+            action_plan=action_plan
         )
 
         # Offload blocking DB operations to threadpool
         await run_in_threadpool(save_issue_db, db, new_issue)
 
-        # Generate Action Plan (AI)
-        ai_services = get_ai_services()
-        action_plan = await ai_services.action_plan_service.generate_action_plan(description, category, image_path)
+        # Invalidate cache
+        RECENT_ISSUES_CACHE["data"] = None
 
         return {
             "id": new_issue.id,
@@ -264,7 +274,11 @@ def get_recent_issues(db: Session = Depends(get_db)):
             "created_at": i.created_at,
             "image_path": i.image_path,
             "status": i.status,
-            "upvotes": i.upvotes if i.upvotes is not None else 0
+            "upvotes": i.upvotes if i.upvotes is not None else 0,
+            "location": i.location,
+            "latitude": i.latitude,
+            "longitude": i.longitude,
+            "action_plan": i.action_plan
         }
         for i in issues
     ]
