@@ -4,6 +4,7 @@ Mock implementations of AI service interfaces for testing and development.
 from typing import Dict, Optional
 import asyncio
 from ai_interfaces import ActionPlanService, ChatService, MLASummaryService
+from ai_service import build_x_post
 
 
 class MockActionPlanService(ActionPlanService):
@@ -20,7 +21,8 @@ class MockActionPlanService(ActionPlanService):
         return {
             "whatsapp": f"Mock: Report {category} issue - {issue_description[:50]}...",
             "email_subject": f"Mock: Complaint regarding {category}",
-            "email_body": f"Mock: Respected Authority,\n\nI am writing to bring to your attention a {category} issue: {issue_description}.\n\nPlease take necessary action.\n\nSincerely,\nCitizen"
+            "email_body": f"Mock: Respected Authority,\n\nI am writing to bring to your attention a {category} issue: {issue_description}.\n\nPlease take necessary action.\n\nSincerely,\nCitizen",
+            "x_post": build_x_post(issue_description, category),
         }
 
 
