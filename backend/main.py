@@ -49,6 +49,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Simple in-memory cache
+# NOTE: This cache is process-local. In a multi-worker environment (e.g., Gunicorn with multiple workers),
+# this cache will not be shared across workers. For production scaling, consider using an external cache
+# like Redis (e.g., redis-py) to share state across processes.
 RECENT_ISSUES_CACHE = {
     "data": None,
     "timestamp": 0,
