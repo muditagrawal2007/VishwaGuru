@@ -1,10 +1,13 @@
 import React from 'react';
+import StatusTracker from '../components/StatusTracker';
 
 const ActionView = ({ actionPlan, setView }) => {
   if (!actionPlan) return null;
 
   return (
     <div className="mt-6 space-y-6">
+      <StatusTracker currentStep={3} />
+
       <div className="bg-green-50 p-4 rounded-lg border border-green-200">
         <h2 className="text-xl font-bold text-green-800 mb-2">Action Plan Generated!</h2>
         <p className="text-green-700">Here are ready-to-use drafts to send to authorities.</p>

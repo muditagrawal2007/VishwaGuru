@@ -89,6 +89,41 @@ async def detect_vandalism_clip(image: Union[Image.Image, bytes], client: httpx.
         logger.error(f"HF Detection Error: {e}")
         return []
 
+async def detect_severity_clip(image: Union[Image.Image, bytes], client: httpx.AsyncClient = None):
+    try:
+        labels = ["critical emergency", "hazardous", "urgent repair needed", "minor issue", "safe", "normal"]
+
+        img_bytes = _prepare_image_bytes(image)
+
+        results = await query_hf_api(img_bytes, labels, client=client)
+
+        if not isinstance(results, list):
+            return {"label": "unknown", "score": 0}
+
+        # Sort by score descending
+        results.sort(key=lambda x: x.get('score', 0), reverse=True)
+
+        top_result = results[0] if results else {"label": "unknown", "score": 0}
+
+        # Map labels to standardized severity levels
+        severity_map = {
+            "critical emergency": "Critical",
+            "hazardous": "High",
+            "urgent repair needed": "High",
+            "minor issue": "Medium",
+            "safe": "Low",
+            "normal": "Low"
+        }
+
+        return {
+            "level": severity_map.get(top_result['label'], "Medium"),
+            "raw_label": top_result['label'],
+            "confidence": top_result['score']
+        }
+    except Exception as e:
+        print(f"HF Severity Detection Error: {e}")
+        return {"level": "Unknown", "error": str(e)}
+
 async def detect_tree_hazard_clip(image: Union[Image.Image, bytes], client: httpx.AsyncClient = None):
     try:
         labels = ["fallen tree", "dangling branch", "leaning tree", "overgrown vegetation", "healthy tree", "normal street"]
