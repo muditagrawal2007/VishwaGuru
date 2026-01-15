@@ -10,6 +10,9 @@ import warnings
 from async_lru import alru_cache
 import logging
 
+# Configure logger
+logger = logging.getLogger(__name__)
+
 # Suppress deprecation warnings from google.generativeai
 warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
 

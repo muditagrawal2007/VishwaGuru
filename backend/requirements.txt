@@ -12,3 +12,10 @@ opencv-python-headless
 huggingface-hub
 httpx
 python-magic
+# Local ML dependencies (Issue #76)
+torch
+transformers
+Pillow
+firebase-functions
+firebase-admin
+a2wsgi
