@@ -231,10 +231,32 @@ async def create_issue(
         )
 
         # Offload blocking DB operations to threadpool
-        await run_in_threadpool(save_issue_db, db, new_issue)
+        saved_issue = await run_in_threadpool(save_issue_db, db, new_issue)
 
-        # Invalidate cache
-        recent_issues_cache.invalidate()
+        # Optimistically update cache to avoid DB query on next homepage load
+        cached_data = recent_issues_cache.get()
+        if cached_data is not None:
+            # Format the new issue to match IssueResponse structure
+            new_issue_dict = IssueResponse(
+                id=saved_issue.id,
+                category=saved_issue.category,
+                description=saved_issue.description[:100] + "..." if len(saved_issue.description) > 100 else saved_issue.description,
+                created_at=saved_issue.created_at,
+                image_path=saved_issue.image_path,
+                status=saved_issue.status,
+                upvotes=saved_issue.upvotes if saved_issue.upvotes is not None else 0,
+                location=saved_issue.location,
+                latitude=saved_issue.latitude,
+                longitude=saved_issue.longitude,
+                action_plan=action_plan_data
+            ).model_dump(mode='json')
+
+            # Prepend to cache and keep top 10
+            updated_cache = [new_issue_dict] + cached_data
+            recent_issues_cache.set(updated_cache[:10])
+        else:
+            # Invalidate cache if it was empty/expired, so next fetch repopulates it
+            recent_issues_cache.invalidate()
 
         return IssueCreateResponse(
             id=new_issue.id,
