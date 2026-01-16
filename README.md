@@ -9,6 +9,27 @@ VishwaGuru is an open source platform empowering India's youth to engage with de
 - **Local & Production Ready**: Supports SQLite for local development and PostgreSQL for production.
 - **Modern Stack**: Built with React (Vite) and FastAPI.
 
+## Architecture & Data Flow
+
+VishwaGuru uses a unified backend architecture where a single FastAPI service powers the web frontend, AI services, database operations, and the Telegram bot.
+
+### High-Level Flow
+
+1. Users submit civic issues via Web UI or Telegram.
+2. Requests reach the FastAPI backend.
+3. Data is validated and stored in the database.
+4. When needed, the backend sends data to Google Gemini.
+5. AI-generated action plans are returned to users.
+
+### Components Interaction
+
+- **Frontend (React + Vite)** communicates with backend via REST APIs.
+- **Backend (FastAPI)** handles logic, validation, and orchestration.
+- **Database** stores civic issues (SQLite locally, PostgreSQL in production).
+- **Gemini AI** generates action plans and message drafts.
+- **Telegram Bot** uses the same backend APIs as the web app.
+
+
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
@@ -177,6 +198,53 @@ DATABASE_URL=...
 *   **AI**: Google Gemini (google-generativeai)
 *   **Bot**: python-telegram-bot
 *   **Deployment**: Firebase (Hosting + Functions), Render/Netlify (Alternative)
+  
+
+## Development & Contribution Guide
+
+This section helps new contributors and developers understand how to work with the VishwaGuru codebase effectively.
+
+### Development Workflow
+
+1. Fork the repository
+2. Create a new branch from `main`
+3. Make focused changes related to a single issue
+4. Test changes locally
+5. Open a pull request with a clear description
+
+### API Usage Overview
+
+- The frontend communicates with the backend using REST APIs.
+- Issue submissions are sent from the frontend to the FastAPI backend.
+- The backend handles validation, database storage, and AI integration.
+- Responses are returned as JSON and rendered in the UI.
+- The same backend APIs are used by the Telegram bot.
+
+This unified API design ensures consistent behavior across all user interfaces.
+
+### Environment Configuration Tips
+
+- Use `.env` files for local development.
+- Never commit API keys or secrets.
+- Ensure `DATABASE_URL` is set correctly when switching between SQLite and PostgreSQL.
+
+### Common Development Commands
+
+
+
+**Backend**
+```bash
+PYTHONPATH=backend python -m uvicorn main:app --reload
+
+```
+
+**Frontend**
+```bash
+cd frontend
+npm install
+npm run dev
+
+```
 
 ## License
 
