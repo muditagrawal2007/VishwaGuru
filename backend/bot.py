@@ -112,7 +112,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def run_bot():
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
-        print("Warning: TELEGRAM_BOT_TOKEN environment variable not set. Bot will not start.")
+        logging.warning("TELEGRAM_BOT_TOKEN environment variable not set. Bot will not start.")
         return None
 
     try:
@@ -130,18 +130,18 @@ async def run_bot():
 
         application.add_handler(conv_handler)
 
-        print("Bot is starting...")
+        logging.info("Bot is starting...")
         # Initialize and start the application
         await application.initialize()
         await application.start()
         await application.updater.start_polling()
 
-        print("Bot started successfully and is polling for updates.")
+        logging.info("Bot started successfully and is polling for updates.")
         
         # Return application so we can stop it later
         return application
     except Exception as e:
-        print(f"Error initializing bot: {e}")
+        logging.error(f"Error initializing bot: {e}")
         logging.error(f"Bot initialization failed: {e}")
         return None
 

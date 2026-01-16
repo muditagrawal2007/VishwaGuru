@@ -9,6 +9,48 @@ VishwaGuru is an open source platform empowering India's youth to engage with de
 - **Local & Production Ready**: Supports SQLite for local development and PostgreSQL for production.
 - **Modern Stack**: Built with React (Vite) and FastAPI.
 
+## Architecture & Data Flow
+
+VishwaGuru follows a modular and lightweight architecture designed for scalability and ease of contribution. The system connects a web frontend, a backend API, AI services, a database, and a Telegram bot through a unified backend.
+
+### High-Level Flow
+
+1. Users submit civic issues through the Web UI or Telegram bot.
+2. Requests are received by the FastAPI backend.
+3. The backend validates and processes the data.
+4. Civic issues are stored in the database.
+5. When required, the backend sends issue details to the Gemini AI service.
+6. AI-generated action plans (WhatsApp messages, emails, etc.) are returned to the user.
+
+### Frontend → Backend Interaction
+
+- The frontend is built using **React (Vite)**.
+- User actions (issue submission, requests for action plans) trigger REST API calls.
+- These requests are handled by the FastAPI backend.
+- Responses from the backend are rendered in the UI.
+
+### AI Request Flow (Gemini API)
+
+- The backend integrates with **Google Gemini** for AI-powered action plans.
+- Relevant civic issue details are sent to the Gemini API.
+- Gemini generates structured responses such as message drafts and action steps.
+- The backend returns these responses to the frontend or Telegram bot.
+
+### Database Usage
+
+- **SQLite** is used for local development and testing.
+- **PostgreSQL** is recommended for production deployments.
+- SQLAlchemy manages all database interactions.
+- Stored data includes civic issues, timestamps, and related metadata.
+
+### Telegram Bot Lifecycle
+
+- The Telegram bot runs as part of the FastAPI application.
+- It starts automatically when the backend server is launched.
+- Users can submit and track civic issues via Telegram.
+- Bot requests follow the same validation, AI, and database flow as the web application.
+
+
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:

@@ -2,6 +2,7 @@
 Test script to verify AI service dependency injection works correctly.
 """
 import asyncio
+import pytest
 import os
 from ai_interfaces import initialize_ai_services, get_ai_services
 from mock_services import (
@@ -11,6 +12,7 @@ from mock_services import (
 )
 
 
+@pytest.mark.asyncio
 async def test_ai_services():
     """Test that AI services can be initialized and used."""
     print("Testing AI service dependency injection...")

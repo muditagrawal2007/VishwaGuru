@@ -8,15 +8,19 @@ import google.generativeai as genai
 from typing import Dict, Optional
 import warnings
 from async_lru import alru_cache
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # Suppress deprecation warnings from google.generativeai
 warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
 
-# Configure Gemini (reuses existing configuration)
-# Use provided key as fallback if env var is missing
-api_key = os.environ.get("GEMINI_API_KEY", "AIzaSyB8_i3tbDE3GmX4CsQ8G3mD3pB2WrHi5C8")
-if api_key:
-    genai.configure(api_key=api_key)
+# Configure Gemini (mandatory environment variable)
+api_key = os.environ.get("GEMINI_API_KEY")
+if not api_key:
+    raise ValueError("GEMINI_API_KEY environment variable is required but not set. Please set it in your environment variables.")
+genai.configure(api_key=api_key)
 
 
 def _get_fallback_summary(mla_name: str, assembly_constituency: str, district: str) -> str:
@@ -57,9 +61,6 @@ async def generate_mla_summary(
     Returns:
         A short paragraph describing the MLA's role and responsibilities
     """
-    if not api_key:
-        return _get_fallback_summary(mla_name, assembly_constituency, district)
-    
     try:
         # Use Gemini 1.5 Flash for faster response times
         model = genai.GenerativeModel('gemini-1.5-flash')
@@ -80,6 +81,6 @@ async def generate_mla_summary(
         return response.text.strip()
         
     except Exception as e:
-        print(f"Gemini Summary Error: {e}")
+        logger.error(f"Gemini Summary Error: {e}")
         # Fallback to simple description
         return _get_fallback_summary(mla_name, assembly_constituency, district)
