@@ -157,6 +157,7 @@ function AppContent() {
               element={
                 <ActionView
                   actionPlan={actionPlan}
+                  setActionPlan={setActionPlan}
                   setView={navigateToView}
                 />
               }

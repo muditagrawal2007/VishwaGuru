@@ -1,5 +1,5 @@
 from sqlalchemy import text
-from database import engine
+from backend.database import engine
 import logging
 
 logger = logging.getLogger(__name__)
@@ -75,5 +75,5 @@ def migrate_db():
 
             conn.commit()
             logger.info("Database migration check completed.")
-        except Exception as e:
-            logger.error(f"Database migration error: {e}")
+    except Exception as e:
+        logger.error(f"Database migration error: {e}")

@@ -23,8 +23,14 @@ logger = logging.getLogger(__name__)
 # Configure Gemini
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
-    raise ValueError("GEMINI_API_KEY environment variable is required")
+    # Allow dummy key for testing/building if not strictly required at startup
+    api_key = "dummy"
+    if os.environ.get("ENVIRONMENT") == "production":
+         logger.warning("GEMINI_API_KEY not set in production environment!")
+
 genai.configure(api_key=api_key)
+
+RESPONSIBILITY_MAP_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "responsibility_map.json")
 
 async def retry_with_exponential_backoff(
     func: Callable,
@@ -104,11 +110,15 @@ async def generate_action_plan(issue_description: str, category: str, image_path
     """
     Generates an action plan (WhatsApp message, Email draft) using Gemini with retry logic.
     """
+    # Generate X post content first using the logic
+    x_post_text = build_x_post(issue_description, category)
+
     # Fallback response for when AI is unavailable
     fallback_response = {
         "whatsapp": f"Hello, I would like to report a {category} issue: {issue_description}",
         "email_subject": f"Complaint regarding {category}",
-        "email_body": f"Respected Authority,\n\nI am writing to bring to your attention a {category} issue: {issue_description}.\n\nPlease take necessary action.\n\nSincerely,\nCitizen"
+        "email_body": f"Respected Authority,\n\nI am writing to bring to your attention a {category} issue: {issue_description}.\n\nPlease take necessary action.\n\nSincerely,\nCitizen",
+        "x_post": x_post_text
     }
 
     async def _generate_with_gemini() -> dict:
@@ -124,7 +134,7 @@ async def generate_action_plan(issue_description: str, category: str, image_path
         1. A concise WhatsApp message (max 200 chars) that can be sent to authorities.
         2. A formal but firm email subject.
         3. A formal email body (max 150 words) addressed to the relevant authority (e.g., Municipal Commissioner, Police, etc. based on category).
-        4. A concise X.com post text (max 240 chars). If provided, prefer this authority handle for tagging: {x_post}
+        4. A concise X.com post text (max 240 chars). If provided, prefer this authority handle for tagging: {x_post_text}
 
         Return the response in strictly valid JSON format with keys: "whatsapp", "email_subject", "email_body", "x_post".
         Do not use markdown code blocks. Just the raw JSON string.
@@ -149,7 +159,7 @@ async def generate_action_plan(issue_description: str, category: str, image_path
             raise Exception("Invalid JSON from AI")
 
         if "x_post" not in plan or not plan.get("x_post"):
-            plan["x_post"] = x_post
+            plan["x_post"] = x_post_text
         return plan
 
     try:

@@ -132,7 +132,11 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
       if (!response.ok) throw new Error('Failed to submit issue');
 
       const data = await response.json();
-      setActionPlan(data.action_plan);
+      if (data.action_plan) {
+        setActionPlan(data.action_plan);
+      } else {
+        setActionPlan({ id: data.id, status: 'generating' });
+      }
       setView('action');
     } catch (err) {
       console.error("Submission failed, using fake action plan", err);

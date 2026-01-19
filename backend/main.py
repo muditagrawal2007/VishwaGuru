@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -19,6 +19,28 @@ import asyncio
 import logging
 import time
 import magic
+import httpx
+
+from backend.database import engine, Base, SessionLocal, get_db
+from backend.init_db import migrate_db
+from backend.models import Issue
+from backend.schemas import IssueResponse, ChatRequest, IssueCreateResponse, ActionPlan
+from backend.ai_service import generate_action_plan, chat_with_civic_assistant
+from backend.ai_factory import create_all_ai_services
+from backend.ai_interfaces import initialize_ai_services, get_ai_services
+from backend.maharashtra_locator import load_maharashtra_pincode_data, load_maharashtra_mla_data, find_constituency_by_pincode, find_mla_by_constituency
+from backend.bot import run_bot
+from backend.pothole_detection import detect_potholes
+from backend.infrastructure_detection import detect_infrastructure_local
+from backend.flooding_detection import detect_flooding_local
+from backend.vandalism_detection import detect_vandalism_local
+from backend.garbage_detection import detect_garbage
+from backend.unified_detection_service import get_detection_status
+from backend.hf_service import (
+    detect_illegal_parking_clip, detect_street_light_clip, detect_fire_clip,
+    detect_stray_animal_clip, detect_blocked_road_clip, detect_tree_hazard_clip,
+    detect_pest_clip, detect_severity_clip, detect_smart_scan_clip, generate_image_caption
+)
 
 # Configure structured logging
 logging.basicConfig(
@@ -151,6 +173,22 @@ RECENT_ISSUES_CACHE = {
 
 # Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
+
+async def process_action_plan_background(issue_id: int, description: str, category: str, image_path: str):
+    db = SessionLocal()
+    try:
+        # Generate Action Plan (AI)
+        action_plan = await generate_action_plan(description, category, image_path)
+
+        # Update issue in DB
+        issue = db.query(Issue).filter(Issue.id == issue_id).first()
+        if issue:
+            issue.action_plan = json.dumps(action_plan)
+            db.commit()
+    except Exception as e:
+        logger.error(f"Background action plan generation failed for issue {issue_id}: {e}", exc_info=True)
+    finally:
+        db.close()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -307,6 +345,7 @@ def save_issue_db(db: Session, issue: Issue):
 
 @app.post("/api/issues")
 async def create_issue(
+    background_tasks: BackgroundTasks,
     description: str = Form(...),
     category: str = Form(...),
     user_email: str = Form(None),
@@ -351,7 +390,7 @@ async def create_issue(
             latitude=latitude,
             longitude=longitude,
             location=location,
-            action_plan=action_plan_json
+            action_plan=None
         )
 
         # Offload blocking DB operations to threadpool
@@ -367,18 +406,13 @@ async def create_issue(
         logger.error(f"Database error while creating issue: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save issue to database")
 
-    try:
-        # Generate Action Plan (AI)
-        action_plan = await generate_action_plan(description, category, image_path)
-    except Exception as e:
-        logger.error(f"AI service error while generating action plan: {e}", exc_info=True)
-        # Don't fail the entire request - return issue without action plan
-        action_plan = {"error": "Unable to generate action plan at this time"}
+    # Add background task for AI generation
+    background_tasks.add_task(process_action_plan_background, new_issue.id, description, category, image_path)
 
     return {
         "id": new_issue.id,
-        "message": "Issue reported successfully",
-        "action_plan": action_plan
+        "message": "Issue reported successfully. Action plan generating in background.",
+        "action_plan": None
     }
 
 @app.post("/api/issues/{issue_id}/vote")
