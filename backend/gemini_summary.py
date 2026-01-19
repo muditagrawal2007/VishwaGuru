@@ -66,10 +66,12 @@ async def retry_with_exponential_backoff(
 
 # Configure Gemini (mandatory environment variable)
 api_key = os.environ.get("GEMINI_API_KEY")
-if not api_key:
-    raise ValueError("GEMINI_API_KEY environment variable is required but not set. Please set it in your environment variables.")
-genai.configure(api_key=api_key)
 
+if api_key:
+    genai.configure(api_key=api_key)
+else:
+    # Gemini disabled (mock/local mode)
+    genai = None
 
 def _get_fallback_summary(mla_name: str, assembly_constituency: str, district: str) -> str:
     """

@@ -1,10 +1,19 @@
+import json
 import os
 import google.generativeai as genai
 from typing import Optional, Callable, Any
 import warnings
+from functools import lru_cache
+from typing import Optional
+import logging
+
+import google.generativeai as genai
 from async_lru import alru_cache
 import asyncio
 import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # Suppress deprecation warnings from google.generativeai
 warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
@@ -65,6 +74,32 @@ async def retry_with_exponential_backoff(
     # This should never be reached, but just in case
     raise last_exception
 
+
+@lru_cache(maxsize=1)
+def _load_responsibility_map() -> dict:
+    """Load responsibility map for authority tagging."""
+    try:
+        with open(RESPONSIBILITY_MAP_PATH, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def build_x_post(issue_description: str, category: str) -> str:
+    """
+    Build an X.com (Twitter) post tagging the relevant authority when available.
+    """
+    responsibility_map = _load_responsibility_map()
+    category_key = str(category).lower().replace(" ", "_")
+    authority_info = responsibility_map.get(category_key, {})
+    handle = authority_info.get("twitter")
+
+    base_message = f"Reporting a {category} issue: {issue_description[:200]}"
+    if handle:
+        return f"{base_message} Tagging {handle} for prompt action. #CivicIssue #VishwaGuru"
+    return f"{base_message} #CivicIssue #VishwaGuru"
+
+
 async def generate_action_plan(issue_description: str, category: str, image_path: Optional[str] = None) -> dict:
     """
     Generates an action plan (WhatsApp message, Email draft) using Gemini with retry logic.
@@ -89,8 +124,9 @@ async def generate_action_plan(issue_description: str, category: str, image_path
         1. A concise WhatsApp message (max 200 chars) that can be sent to authorities.
         2. A formal but firm email subject.
         3. A formal email body (max 150 words) addressed to the relevant authority (e.g., Municipal Commissioner, Police, etc. based on category).
+        4. A concise X.com post text (max 240 chars). If provided, prefer this authority handle for tagging: {x_post}
 
-        Return the response in strictly valid JSON format with keys: "whatsapp", "email_subject", "email_body".
+        Return the response in strictly valid JSON format with keys: "whatsapp", "email_subject", "email_body", "x_post".
         Do not use markdown code blocks. Just the raw JSON string.
         """
 
@@ -98,13 +134,23 @@ async def generate_action_plan(issue_description: str, category: str, image_path
         text_response = response.text.strip()
 
         # Cleanup if markdown code blocks are returned
-        if text_response.startswith("```json"):
-            text_response = text_response[7:-3]
-        elif text_response.startswith("```"):
-            text_response = text_response[3:-3]
+        if "```json" in text_response:
+             text_response = text_response.split("```json")[1].split("```")[0]
+        elif "```" in text_response:
+             text_response = text_response.split("```")[1].split("```")[0]
 
-        import json
-        return json.loads(text_response)
+        text_response = text_response.strip()
+
+        try:
+            plan = json.loads(text_response)
+        except json.JSONDecodeError:
+            # Try to fix common JSON errors if possible, or fallback
+            logger.error(f"Gemini returned invalid JSON: {text_response}")
+            raise Exception("Invalid JSON from AI")
+
+        if "x_post" not in plan or not plan.get("x_post"):
+            plan["x_post"] = x_post
+        return plan
 
     try:
         return await retry_with_exponential_backoff(_generate_with_gemini, max_retries=3)

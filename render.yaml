@@ -21,4 +21,6 @@ services:
         sync: false  # Set to your Netlify URL (e.g., https://your-app.netlify.app)
       - key: DATABASE_URL
         sync: false  # Set to your Neon database connection string
+      - key: PYTHONPATH
+        value: backend
     healthCheckPath: /health

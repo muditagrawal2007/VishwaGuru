@@ -9,6 +9,48 @@ VishwaGuru is an open source platform empowering India's youth to engage with de
 - **Local & Production Ready**: Supports SQLite for local development and PostgreSQL for production.
 - **Modern Stack**: Built with React (Vite) and FastAPI.
 
+## Architecture & Data Flow
+
+VishwaGuru follows a modular and lightweight architecture designed for scalability and ease of contribution. The system connects a web frontend, a backend API, AI services, a database, and a Telegram bot through a unified backend.
+
+### High-Level Flow
+
+1. Users submit civic issues through the Web UI or Telegram bot.
+2. Requests are received by the FastAPI backend.
+3. The backend validates and processes the data.
+4. Civic issues are stored in the database.
+5. When required, the backend sends issue details to the Gemini AI service.
+6. AI-generated action plans (WhatsApp messages, emails, etc.) are returned to the user.
+
+### Frontend → Backend Interaction
+
+- The frontend is built using **React (Vite)**.
+- User actions (issue submission, requests for action plans) trigger REST API calls.
+- These requests are handled by the FastAPI backend.
+- Responses from the backend are rendered in the UI.
+
+### AI Request Flow (Gemini API)
+
+- The backend integrates with **Google Gemini** for AI-powered action plans.
+- Relevant civic issue details are sent to the Gemini API.
+- Gemini generates structured responses such as message drafts and action steps.
+- The backend returns these responses to the frontend or Telegram bot.
+
+### Database Usage
+
+- **SQLite** is used for local development and testing.
+- **PostgreSQL** is recommended for production deployments.
+- SQLAlchemy manages all database interactions.
+- Stored data includes civic issues, timestamps, and related metadata.
+
+### Telegram Bot Lifecycle
+
+- The Telegram bot runs as part of the FastAPI application.
+- It starts automatically when the backend server is launched.
+- Users can submit and track civic issues via Telegram.
+- Bot requests follow the same validation, AI, and database flow as the web application.
+
+
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
@@ -74,7 +116,7 @@ The frontend is a React application built with Vite.
     npm install
     ```
 
-## Running the Application
+## Running Locally
 
 ### Start the Backend Server
 
@@ -102,6 +144,73 @@ The application will be accessible at `http://localhost:5173`.
 
 The Telegram bot runs as part of the FastAPI application lifecycle, so it starts automatically when you run the backend server.
 
+## Deployment to Firebase
+
+VishwaGuru can be deployed fullstack on Firebase using **Firebase Hosting** (for the frontend) and **Cloud Functions** (for the backend).
+
+### Prerequisites
+
+1.  Install Firebase CLI:
+    ```bash
+    npm install -g firebase-tools
+    ```
+2.  Login to Firebase:
+    ```bash
+    firebase login
+    ```
+
+### Deployment Steps
+
+1.  **Initialize Project** (if not already done, or to select your project):
+    ```bash
+    firebase init
+    ```
+    - Select **Hosting** and **Functions**.
+    - Choose "Use an existing project" or create a new one.
+    - Select **Python** for Functions language.
+    - **Important**: The project is already configured with `firebase.json` and `.firebaserc`. You might skip initialization if you just want to set the project alias:
+      ```bash
+      firebase use --add
+      ```
+
+2.  **Build Frontend**:
+    ```bash
+    cd frontend
+    npm run build
+    cd ..
+    ```
+
+3.  **Deploy**:
+    ```bash
+    firebase deploy
+    ```
+
+    This command will:
+    - Build the functions source by copying `backend` and `data` into `functions/`.
+    - Deploy the backend as a Firebase Cloud Function (Gen 2).
+    - Deploy the `frontend/dist` folder to Firebase Hosting.
+    - Set up rewrites so API calls go to the function and other routes go to the React app.
+
+### Environment Variables
+
+For Cloud Functions, you need to set environment variables using the Firebase CLI:
+
+```bash
+firebase functions:config:set \
+  app.telegram_bot_token="YOUR_TOKEN" \
+  app.gemini_api_key="YOUR_KEY" \
+  app.database_url="YOUR_POSTGRES_URL"
+```
+*Note: Firebase Gen 2 functions use `.env` files or Google Secret Manager. The `functions:config:set` is for Gen 1. For Gen 2, it's recommended to use `.env` inside `functions/` or Secret Manager.*
+
+**Recommended for Gen 2:**
+Create `functions/.env` before deploying (DO NOT COMMIT THIS FILE):
+```env
+TELEGRAM_BOT_TOKEN=...
+GEMINI_API_KEY=...
+DATABASE_URL=...
+```
+
 ## Tech Stack
 
 *   **Frontend**: React, Vite, Tailwind CSS
@@ -109,50 +218,7 @@ The Telegram bot runs as part of the FastAPI application lifecycle, so it starts
 *   **Database**: SQLite (Dev), PostgreSQL (Prod)
 *   **AI**: Google Gemini (google-generativeai)
 *   **Bot**: python-telegram-bot
-
-## Deployment
-
-### Architecture: Split Deployment
-
-VishwaGuru uses a modern split deployment architecture:
-- **Frontend**: Deployed on Netlify (Static hosting for React app)
-- **Backend**: Deployed on Render (FastAPI server + Telegram bot + PostgreSQL)
-
-This provides:
-- ✅ Better performance (CDN for frontend)
-- ✅ Independent scaling
-- ✅ Easy rollbacks
-- ✅ Free hosting on both platforms
-
-### Quick Start
-
-See detailed guides:
-- **[Complete Deployment Guide](./DEPLOYMENT_GUIDE.md)** - Step-by-step instructions
-- **[Quick Reference](./QUICK_REFERENCE.md)** - At-a-glance configuration
-
-**TL;DR**:
-
-1. **Backend (Render)**:
-   - Build: `pip install -r backend/requirements.txt`
-   - Start: `python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
-   - Add Neon database connection string and set environment variables
-
-2. **Frontend (Netlify)**:
-   - Base: `frontend/`, Build: `npm run build`, Publish: `frontend/dist`
-   - Set `VITE_API_URL` to your Render backend URL
-
-### ❌ Important: Do NOT use these commands
-
-- `python -m bot` - This only starts the Telegram bot, not the web server
-- `./render-build.sh` - This builds frontend too (unnecessary for backend-only deploy)
-
-## Contributing
-
-1.  Fork the repository.
-2.  Create a new branch (`git checkout -b feature/YourFeature`).
-3.  Commit your changes (`git commit -m 'Add some feature'`).
-4.  Push to the branch (`git push origin feature/YourFeature`).
-5.  Open a Pull Request.
+*   **Deployment**: Firebase (Hosting + Functions), Render/Netlify (Alternative)
 
 ## License
 

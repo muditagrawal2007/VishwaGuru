@@ -1,10 +1,42 @@
 import React from 'react';
-import { AlertTriangle, MapPin, Search, Activity, Camera, Trash2, ThumbsUp, Brush, Droplets, Zap } from 'lucide-react';
+import { AlertTriangle, MapPin, Search, Activity, Camera, Trash2, ThumbsUp, Brush, Droplets, Zap, Truck, Flame, Dog, XCircle, Lightbulb, TreeDeciduous, Bug, Scan, ChevronRight } from 'lucide-react';
 
-const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) => (
+const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) => {
+  const totalImpact = 1240 + (recentIssues ? recentIssues.length : 0);
+
+  return (
   <div className="space-y-6">
+    {/* Impact Widget */}
+    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-4 text-white shadow-md flex justify-between items-center">
+        <div>
+            <h2 className="text-lg font-bold">Community Impact</h2>
+            <p className="text-indigo-100 text-sm">Together we are making a change!</p>
+        </div>
+        <div className="text-right">
+            <span className="text-3xl font-bold block">{totalImpact}</span>
+            <span className="text-xs text-indigo-200 uppercase tracking-wider">Issues Solved</span>
+        </div>
+    </div>
+
+    {/* Smart Scanner CTA */}
+    <button
+        onClick={() => setView('smart-scan')}
+        className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 p-4 rounded-xl shadow-md flex items-center justify-between text-white hover:opacity-90 transition transform active:scale-98"
+    >
+        <div className="flex items-center gap-3">
+            <div className="bg-white/20 p-2 rounded-lg">
+               <Scan size={24} />
+            </div>
+            <div className="text-left">
+                <h3 className="font-bold text-lg">Smart City Scanner</h3>
+                <p className="text-blue-100 text-sm">AI-powered instant detection</p>
+            </div>
+        </div>
+        <ChevronRight size={24} />
+    </button>
+
     {/* Quick Actions Grid */}
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
       <button
         onClick={() => setView('report')}
         className="flex flex-col items-center justify-center bg-blue-50 border-2 border-blue-100 p-4 rounded-xl hover:bg-blue-100 transition shadow-sm h-32"
@@ -12,7 +44,7 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
         <div className="bg-blue-500 text-white p-3 rounded-full mb-2">
           <AlertTriangle size={24} />
         </div>
-        <span className="font-semibold text-blue-800">Report Issue</span>
+        <span className="font-semibold text-blue-800 text-sm">Report Issue</span>
       </button>
 
       <button
@@ -22,7 +54,7 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
         <div className="bg-red-500 text-white p-3 rounded-full mb-2">
           <Camera size={24} />
         </div>
-        <span className="font-semibold text-red-800">Detect Pothole</span>
+        <span className="font-semibold text-red-800 text-sm">Pothole</span>
       </button>
 
       <button
@@ -32,7 +64,7 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
         <div className="bg-orange-500 text-white p-3 rounded-full mb-2">
           <Trash2 size={24} />
         </div>
-        <span className="font-semibold text-orange-800">Detect Garbage</span>
+        <span className="font-semibold text-orange-800 text-sm">Garbage</span>
       </button>
 
       <button
@@ -42,7 +74,7 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
         <div className="bg-purple-500 text-white p-3 rounded-full mb-2">
           <Search size={24} />
         </div>
-        <span className="font-semibold text-purple-800">Find MLA</span>
+        <span className="font-semibold text-purple-800 text-sm">Find MLA</span>
       </button>
 
       <button
@@ -52,7 +84,7 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
         <div className="bg-indigo-500 text-white p-3 rounded-full mb-2">
           <Brush size={24} />
         </div>
-        <span className="font-semibold text-indigo-800">Report Graffiti</span>
+        <span className="font-semibold text-indigo-800 text-sm">Graffiti</span>
       </button>
 
       <button
@@ -62,7 +94,7 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
         <div className="bg-cyan-500 text-white p-3 rounded-full mb-2">
           <Droplets size={24} />
         </div>
-        <span className="font-semibold text-cyan-800">Detect Flood</span>
+        <span className="font-semibold text-cyan-800 text-sm">Flood</span>
       </button>
 
       <button
@@ -72,7 +104,78 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
         <div className="bg-yellow-500 text-white p-3 rounded-full mb-2">
           <Zap size={24} />
         </div>
-        <span className="font-semibold text-yellow-800">Broken Infra</span>
+        <span className="font-semibold text-yellow-800 text-sm">Broken Infra</span>
+      </button>
+
+      {/* New Western Style Features */}
+      <button
+        onClick={() => setView('parking')}
+        className="flex flex-col items-center justify-center bg-rose-50 border-2 border-rose-100 p-4 rounded-xl hover:bg-rose-100 transition shadow-sm h-32"
+      >
+        <div className="bg-rose-500 text-white p-3 rounded-full mb-2">
+          <Truck size={24} />
+        </div>
+        <span className="font-semibold text-rose-800 text-sm">Illegal Parking</span>
+      </button>
+
+      <button
+        onClick={() => setView('streetlight')}
+        className="flex flex-col items-center justify-center bg-slate-50 border-2 border-slate-100 p-4 rounded-xl hover:bg-slate-100 transition shadow-sm h-32"
+      >
+        <div className="bg-slate-700 text-white p-3 rounded-full mb-2">
+          <Lightbulb size={24} />
+        </div>
+        <span className="font-semibold text-slate-800 text-sm">Dark Street</span>
+      </button>
+
+      <button
+        onClick={() => setView('fire')}
+        className="flex flex-col items-center justify-center bg-red-100 border-2 border-red-200 p-4 rounded-xl hover:bg-red-200 transition shadow-sm h-32"
+      >
+        <div className="bg-red-600 text-white p-3 rounded-full mb-2">
+          <Flame size={24} />
+        </div>
+        <span className="font-semibold text-red-900 text-sm">Fire/Smoke</span>
+      </button>
+
+      <button
+        onClick={() => setView('animal')}
+        className="flex flex-col items-center justify-center bg-amber-50 border-2 border-amber-100 p-4 rounded-xl hover:bg-amber-100 transition shadow-sm h-32"
+      >
+        <div className="bg-amber-600 text-white p-3 rounded-full mb-2">
+          <Dog size={24} />
+        </div>
+        <span className="font-semibold text-amber-900 text-sm">Stray Animal</span>
+      </button>
+
+      <button
+        onClick={() => setView('blocked')}
+        className="flex flex-col items-center justify-center bg-gray-50 border-2 border-gray-100 p-4 rounded-xl hover:bg-gray-100 transition shadow-sm h-32"
+      >
+        <div className="bg-gray-600 text-white p-3 rounded-full mb-2">
+          <XCircle size={24} />
+        </div>
+        <span className="font-semibold text-gray-800 text-sm">Blocked Road</span>
+      </button>
+
+      <button
+        onClick={() => setView('tree')}
+        className="flex flex-col items-center justify-center bg-green-50 border-2 border-green-100 p-4 rounded-xl hover:bg-green-100 transition shadow-sm h-32"
+      >
+        <div className="bg-green-600 text-white p-3 rounded-full mb-2">
+          <TreeDeciduous size={24} />
+        </div>
+        <span className="font-semibold text-green-800 text-sm">Tree Hazard</span>
+      </button>
+
+      <button
+        onClick={() => setView('pest')}
+        className="flex flex-col items-center justify-center bg-amber-50 border-2 border-amber-100 p-4 rounded-xl hover:bg-amber-100 transition shadow-sm h-32"
+      >
+        <div className="bg-amber-800 text-white p-3 rounded-full mb-2">
+          <Bug size={24} />
+        </div>
+        <span className="font-semibold text-amber-900 text-sm">Pest Control</span>
       </button>
     </div>
 
@@ -126,6 +229,7 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export default Home;
