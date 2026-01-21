@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { fakeActionPlan } from '../fakeData';
-import { Camera, Image as ImageIcon } from 'lucide-react';
+import { Camera, Image as ImageIcon, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
 // Get API URL from environment variable, fallback to relative URL for local dev
@@ -20,6 +20,7 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
   const [severity, setSeverity] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [describing, setDescribing] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState({ state: 'idle', message: '' });
 
   const autoDescribe = async () => {
       if (!formData.image) return;
@@ -107,6 +108,7 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSubmitStatus({ state: 'pending', message: 'Submitting your issue…' });
 
     const payload = new FormData();
     payload.append('description', formData.description);
@@ -137,14 +139,15 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
       } else {
         setActionPlan({ id: data.id, status: 'generating' });
       }
+      setSubmitStatus({ state: 'success', message: 'Issue submitted. Preparing your action plan…' });
       setView('action');
     } catch (err) {
       console.error("Submission failed, using fake action plan", err);
       // Fallback to fake action plan on failure
       setActionPlan(fakeActionPlan);
       setView('action');
-      // We don't set error here so the user sees the success flow (even if fake)
-      // setError(err.message);
+      setSubmitStatus({ state: 'error', message: 'Submission failed. We generated a fallback plan—please retry when convenient.' });
+      setError('Unable to submit right now. Your plan is a fallback; please retry later.');
     } finally {
       setLoading(false);
     }
@@ -281,8 +284,25 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
             disabled={loading}
             className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 font-bold shadow-md"
           >
-            {loading ? 'Processing...' : 'Generate Action Plan'}
+            {loading ? 'Processing…' : 'Generate Action Plan'}
           </button>
+
+          {submitStatus.state !== 'idle' && (
+            <div
+              className={`mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium shadow-sm ${
+                submitStatus.state === 'success'
+                  ? 'bg-green-50 border-green-200 text-green-800'
+                  : submitStatus.state === 'pending'
+                  ? 'bg-blue-50 border-blue-200 text-blue-800'
+                  : 'bg-red-50 border-red-200 text-red-800'
+              }`}
+            >
+              {submitStatus.state === 'success' && <CheckCircle2 size={18} />}
+              {submitStatus.state === 'pending' && <Loader2 size={18} className="animate-spin" />}
+              {submitStatus.state === 'error' && <AlertTriangle size={18} />}
+              <span>{submitStatus.message}</span>
+            </div>
+          )}
           <button type="button" onClick={() => setView('home')} className="mt-2 text-gray-500 hover:text-gray-700 underline text-center w-full block text-sm">Cancel</button>
        </form>
     </div>
