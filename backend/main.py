@@ -82,15 +82,9 @@ ALLOWED_MIME_TYPES = {
     'image/tiff'
 }
 
-def validate_uploaded_file(file: UploadFile) -> None:
+def _validate_uploaded_file_sync(file: UploadFile) -> None:
     """
-    Validate uploaded file for security and safety.
-    
-    Args:
-        file: The uploaded file to validate
-        
-    Raises:
-        HTTPException: If validation fails
+    Synchronous validation logic to be run in a threadpool.
     """
     # Check file size
     file.file.seek(0, 2)  # Seek to end
@@ -122,6 +116,18 @@ def validate_uploaded_file(file: UploadFile) -> None:
             status_code=400,
             detail="Unable to validate file content. Please ensure it's a valid image file."
         )
+
+async def validate_uploaded_file(file: UploadFile) -> None:
+    """
+    Validate uploaded file for security and safety (async wrapper).
+
+    Args:
+        file: The uploaded file to validate
+
+    Raises:
+        HTTPException: If validation fails
+    """
+    await run_in_threadpool(_validate_uploaded_file_sync, file)
 
 # Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
@@ -177,20 +183,12 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Error pre-loading Maharashtra data: {e}")
 
-    # Startup: Start Telegram Bot in background (non-blocking)
-    bot_task = None
-    bot_app = None
-    
-    # Start bot initialization in background to avoid blocking port binding
-    async def start_bot_background():
-        nonlocal bot_app
-        try:
-            bot_app = await run_bot()
-        except Exception as e:
-            logger.error(f"Error starting bot: {e}")
-    
-    # Create background task for bot initialization
-    bot_task = asyncio.create_task(start_bot_background())
+    # Startup: Start Telegram Bot in separate thread (non-blocking for FastAPI)
+    try:
+        start_bot_thread()
+        logger.info("Telegram bot started in separate thread.")
+    except Exception as e:
+        logger.error(f"Error starting bot thread: {e}")
     
     yield
     
@@ -198,23 +196,12 @@ async def lifespan(app: FastAPI):
     await app.state.http_client.aclose()
     logger.info("Shared HTTP Client closed.")
 
-    # Shutdown: Stop Telegram Bot
-    if bot_task and not bot_task.done():
-        try:
-            bot_task.cancel()
-            await bot_task
-        except asyncio.CancelledError:
-            pass  # Expected when cancelling
-        except Exception as e:
-            logger.error(f"Error cancelling bot task: {e}")
-    
-    if bot_app:
-        try:
-            await bot_app.updater.stop()
-            await bot_app.stop()
-            await bot_app.shutdown()
-        except Exception as e:
-            logger.error(f"Error stopping bot: {e}")
+    # Shutdown: Stop Telegram Bot thread
+    try:
+        stop_bot_thread()
+        logger.info("Telegram bot thread stopped.")
+    except Exception as e:
+        logger.error(f"Error stopping bot thread: {e}")
 
 app = FastAPI(
     title="VishwaGuru Backend",
@@ -334,7 +321,7 @@ async def create_issue(
     try:
         # Validate uploaded image if provided
         if image:
-            validate_uploaded_file(image)
+            await validate_uploaded_file(image)
         
         # Save image if provided
         if image:
@@ -532,7 +519,7 @@ async def detect_pothole_endpoint(image: UploadFile = File(...)):
     try:
         pil_image = await run_in_threadpool(Image.open, image.file)
         # Validate image for processing
-        validate_image_for_processing(pil_image)
+        await run_in_threadpool(validate_image_for_processing, pil_image)
     except HTTPException:
         raise  # Re-raise HTTP exceptions from validation
     except Exception as e:
@@ -556,7 +543,7 @@ async def detect_infrastructure_endpoint(request: Request, image: UploadFile = F
     try:
         pil_image = await run_in_threadpool(Image.open, image.file)
         # Validate image for processing
-        validate_image_for_processing(pil_image)
+        await run_in_threadpool(validate_image_for_processing, pil_image)
     except HTTPException:
         raise  # Re-raise HTTP exceptions from validation
     except Exception as e:
@@ -576,13 +563,13 @@ async def detect_infrastructure_endpoint(request: Request, image: UploadFile = F
 @app.post("/api/detect-flooding")
 async def detect_flooding_endpoint(request: Request, image: UploadFile = File(...)):
     # Validate uploaded file
-    validate_uploaded_file(image)
+    await validate_uploaded_file(image)
     
     # Convert to PIL Image directly from file object to save memory
     try:
         pil_image = await run_in_threadpool(Image.open, image.file)
         # Validate image for processing
-        validate_image_for_processing(pil_image)
+        await run_in_threadpool(validate_image_for_processing, pil_image)
     except HTTPException:
         raise  # Re-raise HTTP exceptions from validation
     except Exception as e:
@@ -618,13 +605,13 @@ async def detect_flooding_endpoint(request: Request, image: UploadFile = File(..
 @app.post("/api/detect-vandalism")
 async def detect_vandalism_endpoint(request: Request, image: UploadFile = File(...)):
     # Validate uploaded file
-    validate_uploaded_file(image)
+    await validate_uploaded_file(image)
     
     # Convert to PIL Image directly from file object to save memory
     try:
         pil_image = await run_in_threadpool(Image.open, image.file)
         # Validate image for processing
-        validate_image_for_processing(pil_image)
+        await run_in_threadpool(validate_image_for_processing, pil_image)
     except HTTPException:
         raise  # Re-raise HTTP exceptions from validation
     except Exception as e:
@@ -644,13 +631,13 @@ async def detect_vandalism_endpoint(request: Request, image: UploadFile = File(.
 @app.post("/api/detect-garbage")
 async def detect_garbage_endpoint(image: UploadFile = File(...)):
     # Validate uploaded file
-    validate_uploaded_file(image)
+    await validate_uploaded_file(image)
     
     # Convert to PIL Image directly from file object to save memory
     try:
         pil_image = await run_in_threadpool(Image.open, image.file)
         # Validate image for processing
-        validate_image_for_processing(pil_image)
+        await run_in_threadpool(validate_image_for_processing, pil_image)
     except HTTPException:
         raise  # Re-raise HTTP exceptions from validation
     except Exception as e:
