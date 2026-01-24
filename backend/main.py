@@ -24,15 +24,17 @@ import httpx
 
 from backend.cache import recent_issues_cache
 from backend.database import engine, Base, SessionLocal, get_db
-from backend.models import Issue
+from backend.models import Issue, PushSubscription
 from backend.schemas import (
     IssueResponse, IssueCreateRequest, IssueCreateResponse, ChatRequest, ChatResponse,
     VoteRequest, VoteResponse, DetectionResponse, UrgencyAnalysisRequest,
     UrgencyAnalysisResponse, HealthResponse, MLStatusResponse, ResponsibilityMapResponse,
-    ErrorResponse, SuccessResponse, IssueCategory, IssueStatus
+    ErrorResponse, SuccessResponse, IssueCategory, IssueStatus,
+    IssueStatusUpdateRequest, IssueStatusUpdateResponse,
+    PushSubscriptionRequest, PushSubscriptionResponse
 )
 from backend.exceptions import EXCEPTION_HANDLERS
-from backend.bot import run_bot
+from backend.bot import run_bot, start_bot_thread, stop_bot_thread
 from backend.ai_factory import create_all_ai_services
 from backend.ai_service import generate_action_plan, chat_with_civic_assistant
 from backend.maharashtra_locator import (
@@ -656,22 +658,6 @@ async def detect_infrastructure_endpoint(request: Request, image: UploadFile = F
     except Exception as e:
         logger.error(f"Infrastructure detection error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Infrastructure detection service temporarily unavailable")
-
-@app.post("/api/detect-flooding")
-async def detect_flooding_endpoint(request: Request, image: UploadFile = File(...)):
-    # Validate uploaded file
-    await validate_uploaded_file(image)
-    
-    # Convert to PIL Image directly from file object to save memory
-    try:
-        pil_image = await run_in_threadpool(Image.open, image.file)
-        # Validate image for processing
-        await run_in_threadpool(validate_image_for_processing, pil_image)
-    except HTTPException:
-        raise  # Re-raise HTTP exceptions from validation
-    except Exception as e:
-        logger.error(f"Invalid image file for flooding detection: {e}", exc_info=True)
-        raise HTTPException(status_code=400, detail="Invalid image file")
 
 @app.post("/api/detect-flooding", response_model=DetectionResponse)
 async def detect_flooding_endpoint(request: Request, image: UploadFile = File(...)):
