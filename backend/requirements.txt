@@ -12,6 +12,7 @@ opencv-python-headless
 huggingface-hub
 httpx
 python-magic
+pywebpush
 # Local ML dependencies (Issue #76)
 torch
 transformers

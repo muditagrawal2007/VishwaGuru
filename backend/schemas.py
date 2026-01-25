@@ -142,3 +142,10 @@ class SuccessResponse(BaseModel):
     message: str = Field(..., description="Success message")
     data: Optional[Dict[str, Any]] = Field(None, description="Response data")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
+
+
+class StatsResponse(BaseModel):
+    total_issues: int = Field(..., description="Total number of issues reported")
+    resolved_issues: int = Field(..., description="Number of resolved/verified issues")
+    pending_issues: int = Field(..., description="Number of open/assigned/in_progress issues")
+    issues_by_category: Dict[str, int] = Field(..., description="Count of issues by category")

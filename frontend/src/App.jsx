@@ -11,6 +11,7 @@ const ReportForm = React.lazy(() => import('./views/ReportForm'));
 const ActionView = React.lazy(() => import('./views/ActionView'));
 const MaharashtraRepView = React.lazy(() => import('./views/MaharashtraRepView'));
 const VerifyView = React.lazy(() => import('./views/VerifyView'));
+const StatsView = React.lazy(() => import('./views/StatsView'));
 const NotFound = React.lazy(() => import('./views/NotFound'));
 
 // Lazy Load Detectors
@@ -40,7 +41,7 @@ function AppContent() {
 
   // Safe navigation helper
   const navigateToView = (view) => {
-    const validViews = ['home', 'map', 'report', 'action', 'mh-rep', 'pothole', 'garbage', 'vandalism', 'flood', 'infrastructure', 'parking', 'streetlight', 'fire', 'animal', 'blocked', 'tree', 'pest', 'smart-scan'];
+    const validViews = ['home', 'map', 'report', 'action', 'mh-rep', 'stats', 'pothole', 'garbage', 'vandalism', 'flood', 'infrastructure', 'parking', 'streetlight', 'fire', 'animal', 'blocked', 'tree', 'pest', 'smart-scan'];
     if (validViews.includes(view)) {
       navigate(view === 'home' ? '/' : `/${view}`);
     }
@@ -175,6 +176,14 @@ function AppContent() {
                   setMaharashtraRepInfo={setMaharashtraRepInfo}
                   maharashtraRepInfo={maharashtraRepInfo}
                   loading={loading}
+                />
+              }
+            />
+            <Route
+              path="/stats"
+              element={
+                <StatsView
+                  setView={navigateToView}
                 />
               }
             />

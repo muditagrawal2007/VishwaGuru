@@ -13,6 +13,7 @@ const SmartScanner = ({ onBack }) => {
     const [error, setError] = useState(null);
     const [model, setModel] = useState(null);
     const [previousFrame, setPreviousFrame] = useState(null);
+    const lastSentRef = useRef(0);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -87,6 +88,12 @@ const SmartScanner = ({ onBack }) => {
         const video = videoRef.current;
         if (video.readyState !== 4) return;
 
+        // Check cooldown
+        const now = Date.now();
+        if (now - lastSentRef.current < 2000) {
+            return;
+        }
+
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
 
@@ -116,6 +123,7 @@ const SmartScanner = ({ onBack }) => {
 
         // If frame changed and local model has high confidence, send to backend
         if (topPrediction.probability > 0.5) {
+            lastSentRef.current = now; // Update timestamp
             // Proceed to backend detection
             canvas.toBlob(async (blob) => {
                 if (!blob) return;

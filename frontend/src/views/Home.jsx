@@ -59,7 +59,10 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
     {/* Header Stats & CTA */}
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Impact Widget */}
-        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-6 text-white shadow-lg flex justify-between items-center transform transition hover:scale-[1.02]">
+        <button
+            onClick={() => setView('stats')}
+            className="w-full text-left bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-6 text-white shadow-lg flex justify-between items-center transform transition hover:scale-[1.02] hover:opacity-95"
+        >
             <div>
                 <h2 className="text-xl font-bold flex items-center gap-2">
                     <Activity size={20} className="text-indigo-200"/>
@@ -71,7 +74,7 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
                 <span className="text-4xl font-extrabold block">{totalImpact}</span>
                 <span className="text-xs text-indigo-200 uppercase tracking-wider font-semibold">{t('home.issuesSolved')}</span>
             </div>
-        </div>
+        </button>
 
         {/* Smart Scanner CTA */}
         <button

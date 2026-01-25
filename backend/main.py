@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.concurrency import run_in_threadpool
+from sqlalchemy import func
 from sqlalchemy.orm import Session, defer
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
@@ -29,7 +30,7 @@ from backend.schemas import (
     IssueResponse, IssueSummaryResponse, IssueCreateRequest, IssueCreateResponse, ChatRequest, ChatResponse,
     VoteRequest, VoteResponse, DetectionResponse, UrgencyAnalysisRequest,
     UrgencyAnalysisResponse, HealthResponse, MLStatusResponse, ResponsibilityMapResponse,
-    ErrorResponse, SuccessResponse, IssueCategory, IssueStatus,
+    ErrorResponse, SuccessResponse, StatsResponse, IssueCategory, IssueStatus,
     IssueStatusUpdateRequest, IssueStatusUpdateResponse,
     PushSubscriptionRequest, PushSubscriptionResponse
 )
@@ -330,6 +331,33 @@ def health():
             "ai_services": "initialized"
         }
     )
+
+@app.get("/api/stats", response_model=StatsResponse)
+def get_stats(db: Session = Depends(get_db)):
+    cached_stats = recent_issues_cache.get("stats")
+    if cached_stats:
+        return JSONResponse(content=cached_stats)
+
+    total = db.query(func.count(Issue.id)).scalar()
+    resolved = db.query(func.count(Issue.id)).filter(Issue.status.in_(['resolved', 'verified'])).scalar()
+    # Pending is everything else
+    pending = total - resolved
+
+    # By category
+    cat_counts = db.query(Issue.category, func.count(Issue.id)).group_by(Issue.category).all()
+    issues_by_category = {cat: count for cat, count in cat_counts}
+
+    response = StatsResponse(
+        total_issues=total,
+        resolved_issues=resolved,
+        pending_issues=pending,
+        issues_by_category=issues_by_category
+    )
+
+    data = response.model_dump(mode='json')
+    recent_issues_cache.set(data, "stats")
+
+    return response
 
 @app.get("/api/ml-status", response_model=MLStatusResponse)
 async def ml_status():
@@ -1129,11 +1157,11 @@ async def get_maharashtra_rep_contacts(pincode: str = Query(..., min_length=6, m
 
     return response
 
-async def send_status_notification(issue_id: int, old_status: str, new_status: str, notes: str = None):
+def send_status_notification(issue_id: int, old_status: str, new_status: str, notes: str = None):
     """Send push notification for issue status update"""
+    db = SessionLocal()
     try:
         # Get issue details
-        db = next(get_db())
         issue = db.query(Issue).filter(Issue.id == issue_id).first()
         if not issue:
             return
@@ -1195,6 +1223,8 @@ async def send_status_notification(issue_id: int, old_status: str, new_status: s
 
     except Exception as e:
         logger.error(f"Error sending status notification: {e}")
+    finally:
+        db.close()
 
 # Note: Frontend serving code removed for separate deployment
 # The frontend will be deployed on Netlify and make API calls to this backend
