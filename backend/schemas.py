@@ -149,3 +149,29 @@ class StatsResponse(BaseModel):
     resolved_issues: int = Field(..., description="Number of resolved/verified issues")
     pending_issues: int = Field(..., description="Number of open/assigned/in_progress issues")
     issues_by_category: Dict[str, int] = Field(..., description="Count of issues by category")
+
+
+class NearbyIssueResponse(BaseModel):
+    id: int = Field(..., description="Issue ID")
+    description: str = Field(..., description="Issue description")
+    category: str = Field(..., description="Issue category")
+    latitude: float = Field(..., description="Issue latitude")
+    longitude: float = Field(..., description="Issue longitude")
+    distance_meters: float = Field(..., description="Distance from new issue location")
+    upvotes: int = Field(..., description="Number of upvotes")
+    created_at: datetime = Field(..., description="Issue creation timestamp")
+    status: str = Field(..., description="Issue status")
+
+
+class DeduplicationCheckResponse(BaseModel):
+    has_nearby_issues: bool = Field(..., description="Whether nearby issues were found")
+    nearby_issues: List[NearbyIssueResponse] = Field(default_factory=list, description="List of nearby issues")
+    recommended_action: str = Field(..., description="Recommended action: 'create_new', 'upvote_existing', 'verify_existing'")
+
+
+class IssueCreateWithDeduplicationResponse(BaseModel):
+    id: Optional[int] = Field(None, description="Created issue ID (None if deduplication occurred)")
+    message: str = Field(..., description="Response message")
+    action_plan: Optional[ActionPlan] = Field(None, description="Generated action plan")
+    deduplication_info: DeduplicationCheckResponse = Field(..., description="Deduplication check results")
+    linked_issue_id: Optional[int] = Field(None, description="ID of existing issue that was upvoted (if applicable)")

@@ -32,7 +32,8 @@ from backend.schemas import (
     UrgencyAnalysisResponse, HealthResponse, MLStatusResponse, ResponsibilityMapResponse,
     ErrorResponse, SuccessResponse, StatsResponse, IssueCategory, IssueStatus,
     IssueStatusUpdateRequest, IssueStatusUpdateResponse,
-    PushSubscriptionRequest, PushSubscriptionResponse
+    PushSubscriptionRequest, PushSubscriptionResponse,
+    NearbyIssueResponse, DeduplicationCheckResponse, IssueCreateWithDeduplicationResponse
 )
 from backend.exceptions import EXCEPTION_HANDLERS
 from backend.bot import run_bot, start_bot_thread, stop_bot_thread
@@ -54,6 +55,7 @@ from backend.local_ml_service import (
     get_detection_status
 )
 from backend.gemini_services import get_ai_services, initialize_ai_services
+from backend.spatial_utils import find_nearby_issues
 from backend.hf_api_service import (
     detect_illegal_parking_clip,
     detect_street_light_clip,
@@ -400,7 +402,7 @@ def save_issue_db(db: Session, issue: Issue):
     db.refresh(issue)
     return issue
 
-@app.post("/api/issues", response_model=IssueCreateResponse, status_code=201)
+@app.post("/api/issues", response_model=IssueCreateWithDeduplicationResponse, status_code=201)
 async def create_issue(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -447,23 +449,83 @@ async def create_issue(
         logger.error(f"Unexpected error during file processing: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
-    try:
-        # Save to DB
-        new_issue = Issue(
-            reference_id=str(uuid.uuid4()),
-            description=description,
-            category=category,
-            image_path=image_path,
-            source="web",
-            user_email=user_email,
-            latitude=latitude,
-            longitude=longitude,
-            location=location,
-            action_plan=None
-        )
+    # Spatial deduplication check
+    deduplication_info = None
+    linked_issue_id = None
 
-        # Offload blocking DB operations to threadpool
-        await run_in_threadpool(save_issue_db, db, new_issue)
+    if latitude is not None and longitude is not None:
+        try:
+            # Find existing open issues within 50 meters
+            open_issues = await run_in_threadpool(
+                lambda: db.query(Issue).filter(
+                    Issue.status == "open",
+                    Issue.latitude.isnot(None),
+                    Issue.longitude.isnot(None)
+                ).all()
+            )
+
+            nearby_issues_with_distance = find_nearby_issues(
+                open_issues, latitude, longitude, radius_meters=50.0
+            )
+
+            if nearby_issues_with_distance:
+                # Found nearby issues - prepare deduplication response
+                nearby_responses = [
+                    NearbyIssueResponse(
+                        id=issue.id,
+                        description=issue.description[:100] + "..." if len(issue.description) > 100 else issue.description,
+                        category=issue.category,
+                        latitude=issue.latitude,
+                        longitude=issue.longitude,
+                        distance_meters=distance,
+                        upvotes=issue.upvotes or 0,
+                        created_at=issue.created_at,
+                        status=issue.status
+                    )
+                    for issue, distance in nearby_issues_with_distance[:3]  # Limit to top 3 closest
+                ]
+
+                deduplication_info = DeduplicationCheckResponse(
+                    has_nearby_issues=True,
+                    nearby_issues=nearby_responses,
+                    recommended_action="upvote_existing"
+                )
+
+                # Automatically upvote the closest issue and link this report to it
+                closest_issue, _ = nearby_issues_with_distance[0]
+                closest_issue.upvotes = (closest_issue.upvotes or 0) + 1
+                linked_issue_id = closest_issue.id
+
+                # Update the database with the upvote
+                await run_in_threadpool(db.commit)
+
+                logger.info(f"Spatial deduplication: Linked new report to existing issue {closest_issue.id}, upvoted to {closest_issue.upvotes}")
+
+        except Exception as e:
+            logger.error(f"Error during spatial deduplication check: {e}", exc_info=True)
+            # Continue with issue creation if deduplication fails
+
+    try:
+        # Save to DB only if no nearby issues found or deduplication failed
+        if deduplication_info is None or not deduplication_info.has_nearby_issues:
+            new_issue = Issue(
+                reference_id=str(uuid.uuid4()),
+                description=description,
+                category=category,
+                image_path=image_path,
+                source="web",
+                user_email=user_email,
+                latitude=latitude,
+                longitude=longitude,
+                location=location,
+                action_plan=None
+            )
+
+            # Offload blocking DB operations to threadpool
+            await run_in_threadpool(save_issue_db, db, new_issue)
+        else:
+            # Don't create new issue, just return deduplication info
+            new_issue = None
     except Exception as e:
         # Clean up uploaded file if DB save failed
         if image_path and os.path.exists(image_path):
@@ -475,47 +537,68 @@ async def create_issue(
         logger.error(f"Database error while creating issue: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save issue to database")
 
-    # Add background task for AI generation
-    background_tasks.add_task(process_action_plan_background, new_issue.id, description, category, language, image_path)
+    # Add background task for AI generation only if new issue was created
+    if new_issue:
+        background_tasks.add_task(process_action_plan_background, new_issue.id, description, category, language, image_path)
 
-    # Optimistic Cache Update with thread-safe operations
-    try:
-        current_cache = recent_issues_cache.get("recent_issues")
-        if current_cache:
-            # Create a dict representation of the new issue
-            # Using IssueSummaryResponse to match the list view optimization
-            new_issue_dict = IssueSummaryResponse(
-                id=new_issue.id,
-                category=new_issue.category,
-                description=new_issue.description[:100] + "..." if len(new_issue.description) > 100 else new_issue.description,
-                created_at=new_issue.created_at,
-                image_path=new_issue.image_path,
-                status=new_issue.status,
-                upvotes=new_issue.upvotes if new_issue.upvotes is not None else 0,
-                location=new_issue.location,
-                latitude=new_issue.latitude,
-                longitude=new_issue.longitude
-                # action_plan excluded
-            ).model_dump(mode='json')
+        # Optimistic Cache Update with thread-safe operations
+        try:
+            current_cache = recent_issues_cache.get("recent_issues")
+            if current_cache:
+                # Create a dict representation of the new issue
+                # Using IssueSummaryResponse to match the list view optimization
+                new_issue_dict = IssueSummaryResponse(
+                    id=new_issue.id,
+                    category=new_issue.category,
+                    description=new_issue.description[:100] + "..." if len(new_issue.description) > 100 else new_issue.description,
+                    created_at=new_issue.created_at,
+                    image_path=new_issue.image_path,
+                    status=new_issue.status,
+                    upvotes=new_issue.upvotes if new_issue.upvotes is not None else 0,
+                    location=new_issue.location,
+                    latitude=new_issue.latitude,
+                    longitude=new_issue.longitude
+                    # action_plan excluded
+                ).model_dump(mode='json')
 
-            # Prepend new issue to the list (atomic operation)
-            current_cache.insert(0, new_issue_dict)
+                # Prepend new issue to the list (atomic operation)
+                current_cache.insert(0, new_issue_dict)
 
-            # Keep only last 10 entries
-            if len(current_cache) > 10:
-                current_cache.pop()
+                # Keep only last 10 entries
+                if len(current_cache) > 10:
+                    current_cache.pop()
 
-            # Atomic cache update
-            recent_issues_cache.set(current_cache, "recent_issues")
-    except Exception as e:
-        logger.error(f"Error updating cache optimistically: {e}")
-        # Failure to update cache is not critical, don't fail the request
+                # Atomic cache update
+                recent_issues_cache.set(current_cache, "recent_issues")
+        except Exception as e:
+            logger.error(f"Error updating cache optimistically: {e}")
+            # Failure to update cache is not critical, don't fail the request
 
-    return IssueCreateResponse(
-        id=new_issue.id,
-        message="Issue reported successfully. Action plan will be generated shortly.",
-        action_plan=None
-    )
+    # Prepare deduplication info if not already set
+    if deduplication_info is None:
+        deduplication_info = DeduplicationCheckResponse(
+            has_nearby_issues=False,
+            nearby_issues=[],
+            recommended_action="create_new"
+        )
+
+    # Return response with deduplication information
+    if new_issue:
+        return IssueCreateWithDeduplicationResponse(
+            id=new_issue.id,
+            message="Issue reported successfully. Action plan will be generated shortly.",
+            action_plan=None,
+            deduplication_info=deduplication_info,
+            linked_issue_id=linked_issue_id
+        )
+    else:
+        return IssueCreateWithDeduplicationResponse(
+            id=None,
+            message="Similar issue found nearby. Your report has been linked to the existing issue to increase its priority.",
+            action_plan=None,
+            deduplication_info=deduplication_info,
+            linked_issue_id=linked_issue_id
+        )
 
 @app.post("/api/issues/{issue_id}/vote", response_model=VoteResponse)
 def upvote_issue(issue_id: int, db: Session = Depends(get_db)):
@@ -535,6 +618,81 @@ def upvote_issue(issue_id: int, db: Session = Depends(get_db)):
         id=issue.id,
         upvotes=issue.upvotes,
         message="Issue upvoted successfully"
+    )
+
+@app.get("/api/issues/nearby", response_model=List[NearbyIssueResponse])
+def get_nearby_issues(
+    latitude: float = Query(..., ge=-90, le=90, description="Latitude of the location"),
+    longitude: float = Query(..., ge=-180, le=180, description="Longitude of the location"),
+    radius: float = Query(50.0, ge=10, le=500, description="Search radius in meters"),
+    limit: int = Query(10, ge=1, le=50, description="Maximum number of results"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get issues near a specific location for deduplication purposes.
+    Returns issues within the specified radius, sorted by distance.
+    """
+    try:
+        # Query open issues with coordinates
+        open_issues = db.query(Issue).filter(
+            Issue.status == "open",
+            Issue.latitude.isnot(None),
+            Issue.longitude.isnot(None)
+        ).all()
+
+        nearby_issues_with_distance = find_nearby_issues(
+            open_issues, latitude, longitude, radius_meters=radius
+        )
+
+        # Convert to response format and limit results
+        nearby_responses = [
+            NearbyIssueResponse(
+                id=issue.id,
+                description=issue.description[:100] + "..." if len(issue.description) > 100 else issue.description,
+                category=issue.category,
+                latitude=issue.latitude,
+                longitude=issue.longitude,
+                distance_meters=distance,
+                upvotes=issue.upvotes or 0,
+                created_at=issue.created_at,
+                status=issue.status
+            )
+            for issue, distance in nearby_issues_with_distance[:limit]
+        ]
+
+        return nearby_responses
+
+    except Exception as e:
+        logger.error(f"Error getting nearby issues: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve nearby issues")
+
+@app.post("/api/issues/{issue_id}/verify", response_model=VoteResponse)
+def verify_issue(issue_id: int, db: Session = Depends(get_db)):
+    """
+    Manually verify an existing issue (similar to upvoting but indicates verification).
+    This can be used when users choose to verify an existing issue instead of creating a duplicate.
+    """
+    issue = db.query(Issue).filter(Issue.id == issue_id).first()
+    if not issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+
+    # Increment upvotes (verification counts as strong support)
+    if issue.upvotes is None:
+        issue.upvotes = 0
+    issue.upvotes += 2  # Verification counts as 2 upvotes
+
+    # If issue has enough verifications, consider upgrading status
+    if issue.upvotes >= 5 and issue.status == "open":
+        issue.status = "verified"
+        logger.info(f"Issue {issue_id} automatically verified due to {issue.upvotes} upvotes")
+
+    db.commit()
+    db.refresh(issue)
+
+    return VoteResponse(
+        id=issue.id,
+        upvotes=issue.upvotes,
+        message="Issue verified successfully"
     )
 
 @app.put("/api/issues/status", response_model=IssueStatusUpdateResponse)
