@@ -1,44 +1,48 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, MapPin, Search, Activity, Camera, Trash2, ThumbsUp, Brush,
   Droplets, Zap, Truck, Flame, Dog, XCircle, Lightbulb, TreeDeciduous, Bug,
-  Scan, ChevronRight, LayoutGrid, Shield, Leaf, Building
+  Scan, ChevronRight, LayoutGrid, Shield, Leaf, Building, CheckCircle
 } from 'lucide-react';
 
 const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) => {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
   const totalImpact = 1240 + (recentIssues ? recentIssues.length : 0);
 
   const categories = [
     {
-      title: "Road & Traffic",
+      title: t('home.categories.roadTraffic'),
       icon: <LayoutGrid size={20} className="text-blue-600" />,
       items: [
-        { id: 'pothole', label: 'Pothole', icon: <Camera size={24} />, color: 'text-red-600', bg: 'bg-red-50' },
-        { id: 'blocked', label: 'Blocked Road', icon: <XCircle size={24} />, color: 'text-gray-600', bg: 'bg-gray-50' },
-        { id: 'parking', label: 'Illegal Parking', icon: <Truck size={24} />, color: 'text-rose-600', bg: 'bg-rose-50' },
-        { id: 'streetlight', label: 'Dark Street', icon: <Lightbulb size={24} />, color: 'text-slate-600', bg: 'bg-slate-50' },
+        { id: 'pothole', label: t('home.issues.pothole'), icon: <Camera size={24} />, color: 'text-red-600', bg: 'bg-red-50' },
+        { id: 'blocked', label: t('home.issues.blockedRoad'), icon: <XCircle size={24} />, color: 'text-gray-600', bg: 'bg-gray-50' },
+        { id: 'parking', label: t('home.issues.illegalParking'), icon: <Truck size={24} />, color: 'text-rose-600', bg: 'bg-rose-50' },
+        { id: 'streetlight', label: t('home.issues.darkStreet'), icon: <Lightbulb size={24} />, color: 'text-slate-600', bg: 'bg-slate-50' },
       ]
     },
     {
-      title: "Environment & Safety",
+      title: t('home.categories.environmentSafety'),
       icon: <Leaf size={20} className="text-green-600" />,
       items: [
-        { id: 'garbage', label: 'Garbage', icon: <Trash2 size={24} />, color: 'text-orange-600', bg: 'bg-orange-50' },
-        { id: 'flood', label: 'Flood', icon: <Droplets size={24} />, color: 'text-cyan-600', bg: 'bg-cyan-50' },
-        { id: 'fire', label: 'Fire/Smoke', icon: <Flame size={24} />, color: 'text-red-600', bg: 'bg-red-50' },
-        { id: 'tree', label: 'Tree Hazard', icon: <TreeDeciduous size={24} />, color: 'text-green-600', bg: 'bg-green-50' },
-        { id: 'animal', label: 'Stray Animal', icon: <Dog size={24} />, color: 'text-amber-600', bg: 'bg-amber-50' },
-        { id: 'pest', label: 'Pest Control', icon: <Bug size={24} />, color: 'text-amber-800', bg: 'bg-amber-50' },
+        { id: 'garbage', label: t('home.issues.garbage'), icon: <Trash2 size={24} />, color: 'text-orange-600', bg: 'bg-orange-50' },
+        { id: 'flood', label: t('home.issues.flood'), icon: <Droplets size={24} />, color: 'text-cyan-600', bg: 'bg-cyan-50' },
+        { id: 'fire', label: t('home.issues.fireSmoke'), icon: <Flame size={24} />, color: 'text-red-600', bg: 'bg-red-50' },
+        { id: 'tree', label: t('home.issues.treeHazard'), icon: <TreeDeciduous size={24} />, color: 'text-green-600', bg: 'bg-green-50' },
+        { id: 'animal', label: t('home.issues.strayAnimal'), icon: <Dog size={24} />, color: 'text-amber-600', bg: 'bg-amber-50' },
+        { id: 'pest', label: t('home.issues.pestControl'), icon: <Bug size={24} />, color: 'text-amber-800', bg: 'bg-amber-50' },
       ]
     },
     {
-      title: "Civic Services",
+      title: t('home.categories.civicServices'),
       icon: <Building size={20} className="text-indigo-600" />,
       items: [
-        { id: 'report', label: 'Report Issue', icon: <AlertTriangle size={24} />, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { id: 'infrastructure', label: 'Broken Infra', icon: <Zap size={24} />, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-        { id: 'vandalism', label: 'Graffiti', icon: <Brush size={24} />, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-        { id: 'mh-rep', label: 'Find MLA', icon: <Search size={24} />, color: 'text-purple-600', bg: 'bg-purple-50' },
+        { id: 'report', label: t('home.issues.reportIssue'), icon: <AlertTriangle size={24} />, color: 'text-blue-600', bg: 'bg-blue-50' },
+        { id: 'infrastructure', label: t('home.issues.brokenInfra'), icon: <Zap size={24} />, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+        { id: 'vandalism', label: t('home.issues.graffiti'), icon: <Brush size={24} />, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+        { id: 'mh-rep', label: t('home.issues.findMLA'), icon: <Search size={24} />, color: 'text-purple-600', bg: 'bg-purple-50' },
       ]
     }
   ];
@@ -48,26 +52,29 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
     <div className="flex justify-end">
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100 shadow-sm">
             <Shield size={14} />
-            AI-Powered Privacy Protection Active
+            {t('home.privacyActive')}
         </span>
     </div>
 
     {/* Header Stats & CTA */}
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Impact Widget */}
-        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-6 text-white shadow-lg flex justify-between items-center transform transition hover:scale-[1.02]">
+        <button
+            onClick={() => setView('stats')}
+            className="w-full text-left bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-6 text-white shadow-lg flex justify-between items-center transform transition hover:scale-[1.02] hover:opacity-95"
+        >
             <div>
                 <h2 className="text-xl font-bold flex items-center gap-2">
                     <Activity size={20} className="text-indigo-200"/>
-                    Community Impact
+                    {t('home.communityImpact')}
                 </h2>
-                <p className="text-indigo-100 text-sm mt-1 opacity-90">Together we are making a change!</p>
+                <p className="text-indigo-100 text-sm mt-1 opacity-90">{t('home.makingChange')}</p>
             </div>
             <div className="text-right">
                 <span className="text-4xl font-extrabold block">{totalImpact}</span>
-                <span className="text-xs text-indigo-200 uppercase tracking-wider font-semibold">Issues Solved</span>
+                <span className="text-xs text-indigo-200 uppercase tracking-wider font-semibold">{t('home.issuesSolved')}</span>
             </div>
-        </div>
+        </button>
 
         {/* Smart Scanner CTA */}
         <button
@@ -79,8 +86,8 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
                 <Scan size={28} />
                 </div>
                 <div className="text-left">
-                    <h3 className="font-bold text-xl">Smart City Scanner</h3>
-                    <p className="text-blue-100 text-sm mt-1">AI-powered instant detection</p>
+                    <h3 className="font-bold text-xl">{t('home.smartScanner')}</h3>
+                    <p className="text-blue-100 text-sm mt-1">{t('home.aiPoweredDetection')}</p>
                 </div>
             </div>
             <div className="bg-white/10 p-2 rounded-full">
@@ -158,13 +165,23 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
                        <MapPin size={12} />
                        {issue.location || 'Unknown Location'}
                    </div>
-                   <button
-                      onClick={(e) => { e.stopPropagation(); handleUpvote(issue.id); }}
-                      className="flex items-center gap-1.5 text-gray-500 hover:text-blue-600 text-xs bg-gray-50 px-2 py-1 rounded-md transition hover:bg-blue-50"
-                  >
-                      <ThumbsUp size={12} />
-                      <span className="font-medium">{issue.upvotes || 0}</span>
-                  </button>
+                   <div className="flex gap-2">
+                       <button
+                          onClick={(e) => { e.stopPropagation(); navigate(`/verify/${issue.id}`); }}
+                          className="flex items-center gap-1.5 text-gray-500 hover:text-green-600 text-xs bg-gray-50 px-2 py-1 rounded-md transition hover:bg-green-50"
+                          title="Verify Resolution"
+                      >
+                          <CheckCircle size={12} />
+                          <span className="font-medium">Verify</span>
+                      </button>
+                       <button
+                          onClick={(e) => { e.stopPropagation(); handleUpvote(issue.id); }}
+                          className="flex items-center gap-1.5 text-gray-500 hover:text-blue-600 text-xs bg-gray-50 px-2 py-1 rounded-md transition hover:bg-blue-50"
+                      >
+                          <ThumbsUp size={12} />
+                          <span className="font-medium">{issue.upvotes || 0}</span>
+                      </button>
+                   </div>
               </div>
             </div>
           ))

@@ -17,5 +17,9 @@ export const miscApi = {
 
   getRepContact: async (pincode) => {
       return await apiClient.get(`/api/mh/rep-contacts?pincode=${pincode}`);
+  },
+
+  getStats: async () => {
+      return await apiClient.get('/api/stats');
   }
 };

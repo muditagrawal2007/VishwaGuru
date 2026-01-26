@@ -21,6 +21,9 @@ CAPTION_API_URL = "https://api-inference.huggingface.co/models/Salesforce/blip-i
 # Sentiment Analysis / Text Classification Model
 SENTIMENT_API_URL = "https://api-inference.huggingface.co/models/cardiffnlp/twitter-roberta-base-sentiment-latest"
 
+# Visual Question Answering Model
+VQA_API_URL = "https://api-inference.huggingface.co/models/dandelin/vilt-b32-finetuned-vqa"
+
 async def _make_request(client, url, payload):
     try:
         response = await client.post(url, headers=headers, json=payload, timeout=20.0)
@@ -229,3 +232,35 @@ async def analyze_urgency_text(text: str, client: httpx.AsyncClient = None):
             return {"urgency": urgency, "score": score, "sentiment": label}
 
     return {"urgency": "Low", "score": 0, "sentiment": "unknown"}
+
+
+async def verify_resolution_vqa(image: Union[Image.Image, bytes], question: str, client: httpx.AsyncClient = None):
+    """
+    Uses VQA to verify if an issue is resolved based on a question.
+    """
+    img_bytes = _prepare_image_bytes(image)
+    image_base64 = base64.b64encode(img_bytes).decode('utf-8')
+
+    payload = {
+        "inputs": {
+            "image": image_base64,
+            "question": question
+        }
+    }
+
+    if client:
+        result = await _make_request(client, VQA_API_URL, payload)
+    else:
+        async with httpx.AsyncClient() as new_client:
+            result = await _make_request(new_client, VQA_API_URL, payload)
+
+    # Result format: [{'answer': 'yes', 'score': 0.9}, ...]
+    if isinstance(result, list) and len(result) > 0:
+        top = result[0]
+        return {
+            "answer": top.get('answer'),
+            "confidence": top.get('score'),
+            "all_answers": result[:3]
+        }
+
+    return {"answer": "unknown", "confidence": 0}
