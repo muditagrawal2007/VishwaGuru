@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fakeActionPlan } from '../fakeData';
-import { Camera, Image as ImageIcon, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Camera, Image as ImageIcon, CheckCircle2, AlertTriangle, Loader2, Layers } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { saveReportOffline, registerBackgroundSync } from '../offlineQueue';
 import VoiceInput from '../components/VoiceInput';
+import { detectorsApi } from '../api';
 
 // Get API URL from environment variable, fallback to relative URL for local dev
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -26,6 +27,8 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
   const [describing, setDescribing] = useState(false);
   const [urgencyAnalysis, setUrgencyAnalysis] = useState(null);
   const [analyzingUrgency, setAnalyzingUrgency] = useState(false);
+  const [depthMap, setDepthMap] = useState(null);
+  const [analyzingDepth, setAnalyzingDepth] = useState(false);
   const [submitStatus, setSubmitStatus] = useState({ state: 'idle', message: '' });
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
@@ -111,6 +114,26 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
     } finally {
         setAnalyzing(false);
     }
+  };
+
+  const analyzeDepth = async () => {
+      if (!formData.image) return;
+      setAnalyzingDepth(true);
+      setDepthMap(null);
+
+      const uploadData = new FormData();
+      uploadData.append('image', formData.image);
+
+      try {
+          const data = await detectorsApi.depth(uploadData);
+          if (data && data.depth_map) {
+              setDepthMap(data.depth_map);
+          }
+      } catch (e) {
+          console.error("Depth analysis failed", e);
+      } finally {
+          setAnalyzingDepth(false);
+      }
   };
 
   const handleImageChange = (e) => {
@@ -355,6 +378,35 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
             {formData.image && (
                 <div className="text-sm text-green-600 mb-2 text-center">
                     Selected: {formData.image.name}
+                </div>
+            )}
+
+            {formData.image && !depthMap && (
+                <button
+                    type="button"
+                    onClick={analyzeDepth}
+                    disabled={analyzingDepth}
+                    className="w-full text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg hover:bg-indigo-100 transition flex items-center justify-center gap-2 font-medium mb-2"
+                >
+                    {analyzingDepth ? (
+                        <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                        <Layers size={14} />
+                    )}
+                    {analyzingDepth ? 'Generating 3D Map...' : 'Analyze Severity (3D)'}
+                </button>
+            )}
+
+            {depthMap && (
+                <div className="mb-2 border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 px-2 py-1 text-xs text-gray-500 font-medium border-b border-gray-200">
+                        3D Depth Analysis Map
+                    </div>
+                    <img
+                        src={`data:image/jpeg;base64,${depthMap}`}
+                        alt="Depth Map"
+                        className="w-full h-auto object-cover"
+                    />
                 </div>
             )}
 

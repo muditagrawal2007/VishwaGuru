@@ -4,12 +4,55 @@ import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, MapPin, Search, Activity, Camera, Trash2, ThumbsUp, Brush,
   Droplets, Zap, Truck, Flame, Dog, XCircle, Lightbulb, TreeDeciduous, Bug,
-  Scan, ChevronRight, LayoutGrid, Shield, Leaf, Building, CheckCircle
+  Scan, ChevronRight, LayoutGrid, Shield, Leaf, Building, CheckCircle, Trophy, Monitor
 } from 'lucide-react';
+
+const CameraCheckModal = ({ onClose }) => {
+    const videoRef = React.useRef(null);
+    const [status, setStatus] = React.useState('requesting');
+
+    React.useEffect(() => {
+        let stream = null;
+        const startCamera = async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                    setStatus('active');
+                }
+            } catch (e) {
+                console.error("Camera access denied", e);
+                setStatus('error');
+            }
+        };
+        startCamera();
+        return () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, []);
+
+    return (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center">
+                <h3 className="text-lg font-bold mb-4">Camera Diagnostics</h3>
+                <div className="bg-gray-100 rounded-lg h-48 mb-4 flex items-center justify-center overflow-hidden relative">
+                    {status === 'requesting' && <span className="text-gray-500 animate-pulse">Requesting access...</span>}
+                    {status === 'error' && <span className="text-red-500 font-medium">Camera access failed. Check permissions.</span>}
+                    <video ref={videoRef} autoPlay playsInline className={`w-full h-full object-cover ${status === 'active' ? 'block' : 'hidden'}`} />
+                </div>
+                {status === 'active' && <p className="text-green-600 font-medium text-sm mb-4">Camera is working correctly!</p>}
+                <button onClick={onClose} className="w-full bg-blue-600 text-white py-2 rounded-lg font-bold">Close</button>
+            </div>
+        </div>
+    );
+};
 
 const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [showCameraCheck, setShowCameraCheck] = React.useState(false);
   const totalImpact = 1240 + (recentIssues ? recentIssues.length : 0);
 
   const categories = [
@@ -123,7 +166,7 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
     </div>
 
     {/* Additional Tools */}
-    <div className="grid grid-cols-1">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
        <button
         onClick={fetchResponsibilityMap}
         className="flex flex-row items-center justify-center bg-emerald-50 border border-emerald-100 p-4 rounded-xl hover:bg-emerald-100 transition shadow-sm h-16 gap-3 text-emerald-800 font-semibold"
@@ -131,7 +174,23 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
           <MapPin size={20} className="text-emerald-600" />
           Who is Responsible?
       </button>
+      <button
+        onClick={() => setView('leaderboard')}
+        className="flex flex-row items-center justify-center bg-yellow-50 border border-yellow-100 p-4 rounded-xl hover:bg-yellow-100 transition shadow-sm h-16 gap-3 text-yellow-800 font-semibold"
+      >
+          <Trophy size={20} className="text-yellow-600" />
+          Top Reporters
+      </button>
+      <button
+        onClick={() => setShowCameraCheck(true)}
+        className="flex flex-row items-center justify-center bg-slate-50 border border-slate-100 p-4 rounded-xl hover:bg-slate-100 transition shadow-sm h-16 gap-3 text-slate-800 font-semibold"
+      >
+          <Monitor size={20} className="text-slate-600" />
+          Camera Check
+      </button>
     </div>
+
+    {showCameraCheck && <CameraCheckModal onClose={() => setShowCameraCheck(false)} />}
 
     {/* Recent Activity Feed */}
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

@@ -24,6 +24,9 @@ SENTIMENT_API_URL = "https://api-inference.huggingface.co/models/cardiffnlp/twit
 # Visual Question Answering Model
 VQA_API_URL = "https://api-inference.huggingface.co/models/dandelin/vilt-b32-finetuned-vqa"
 
+# Depth Estimation Model
+DEPTH_API_URL = "https://api-inference.huggingface.co/models/Intel/dpt-hybrid-midas"
+
 async def _make_request(client, url, payload):
     try:
         response = await client.post(url, headers=headers, json=payload, timeout=20.0)
@@ -264,3 +267,36 @@ async def verify_resolution_vqa(image: Union[Image.Image, bytes], question: str,
         }
 
     return {"answer": "unknown", "confidence": 0}
+
+async def detect_depth_map(image: Union[Image.Image, bytes], client: httpx.AsyncClient = None):
+    """
+    Generates a depth map for the given image using Intel/dpt-hybrid-midas.
+    Returns a Base64 encoded string of the depth map image.
+    """
+    img_bytes = _prepare_image_bytes(image)
+
+    # The DPT model expects raw image bytes as input and returns raw image bytes (JPEG/PNG)
+    try:
+        headers_bin = {"Authorization": f"Bearer {token}"} if token else {}
+        async def do_post(c):
+             return await c.post(DEPTH_API_URL, headers=headers_bin, content=img_bytes, timeout=30.0)
+
+        if client:
+            response = await do_post(client)
+        else:
+            async with httpx.AsyncClient() as new_client:
+                response = await do_post(new_client)
+
+        if response.status_code == 200:
+            # Response is a binary image
+            response_bytes = response.content
+            # Convert to base64
+            b64_img = base64.b64encode(response_bytes).decode('utf-8')
+            return {"depth_map": b64_img}
+        else:
+            logger.error(f"Depth API Error: {response.status_code} - {response.text}")
+            return {"error": "Failed to generate depth map", "details": response.text}
+
+    except Exception as e:
+        logger.error(f"Depth Estimation Error: {e}")
+        return {"error": str(e)}

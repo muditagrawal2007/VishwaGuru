@@ -48,4 +48,5 @@ export const detectorsApi = {
   blockedRoad: createDetectorApi('/api/detect-blocked-road'),
   treeHazard: createDetectorApi('/api/detect-tree-hazard'),
   pest: createDetectorApi('/api/detect-pest'),
+  depth: createDetectorApi('/api/analyze-depth'),
 };

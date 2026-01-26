@@ -21,5 +21,9 @@ export const miscApi = {
 
   getStats: async () => {
       return await apiClient.get('/api/stats');
+  },
+
+  getLeaderboard: async () => {
+      return await apiClient.get('/api/leaderboard');
   }
 };

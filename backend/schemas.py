@@ -178,3 +178,13 @@ class IssueCreateWithDeduplicationResponse(BaseModel):
     action_plan: Optional[ActionPlan] = Field(None, description="Generated action plan")
     deduplication_info: DeduplicationCheckResponse = Field(..., description="Deduplication check results")
     linked_issue_id: Optional[int] = Field(None, description="ID of existing issue that was upvoted (if applicable)")
+
+
+class LeaderboardEntry(BaseModel):
+    user_email: str = Field(..., description="User email (masked)")
+    reports_count: int = Field(..., description="Number of issues reported")
+    total_upvotes: int = Field(..., description="Total upvotes received on reports")
+    rank: int = Field(..., description="Rank on the leaderboard")
+
+class LeaderboardResponse(BaseModel):
+    leaderboard: List[LeaderboardEntry] = Field(..., description="List of top reporters")
