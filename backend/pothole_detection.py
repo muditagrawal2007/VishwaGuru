@@ -2,8 +2,9 @@ import logging
 import threading
 from typing import Optional, Any
 
+from backend.exceptions import ModelLoadException, DetectionException
+
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Thread-safe singleton pattern for model loading
@@ -45,7 +46,7 @@ def load_model():
         return model
     except Exception as e:
         logger.error(f"Failed to load model: {e}")
-        raise e
+        raise ModelLoadException("keremberke/yolov8n-pothole-segmentation", details={"error": str(e)}) from e
 
 
 def get_model():
@@ -95,7 +96,7 @@ def get_model():
             _model_loading_error = e
             _model_initialized = True  # Mark as initialized (even though it failed)
             logger.error(f"Model initialization failed: {e}")
-            raise
+            raise ModelLoadException("keremberke/yolov8n-pothole-segmentation", details={"error": str(e)}) from e
 
 
 def reset_model():
@@ -129,8 +130,7 @@ def validate_image_for_processing(image):
         return True
     except Exception as e:
         logger.error(f"Image validation failed: {e}")
-        from fastapi import HTTPException
-        raise HTTPException(status_code=400, detail="Invalid image content")
+        raise DetectionException("Invalid image content for pothole detection", "pothole", details={"error": str(e)}) from e
 
 def detect_potholes(image_source):
     """
@@ -141,31 +141,38 @@ def detect_potholes(image_source):
 
     Returns:
         List of detections. Each detection is a dict with 'box', 'confidence', 'label'.
+
+    Raises:
+        DetectionException: If pothole detection fails
     """
-    model = get_model()
+    try:
+        model = get_model()
 
-    # perform inference
-    # stream=False ensures we get all results in memory
-    results = model.predict(image_source, stream=False)
+        # perform inference
+        # stream=False ensures we get all results in memory
+        results = model.predict(image_source, stream=False)
 
-    # observe results
-    result = results[0] # Single image
+        # observe results
+        result = results[0] # Single image
 
-    detections = []
+        detections = []
 
-    if hasattr(result, 'boxes'):
-        for i, box in enumerate(result.boxes):
-            # box.xyxy is [x1, y1, x2, y2] tensor
-            # Convert to list
-            coords = box.xyxy[0].cpu().numpy().tolist()
-            conf = float(box.conf[0].cpu().numpy())
-            cls_id = int(box.cls[0].cpu().numpy())
-            label = result.names[cls_id]
+        if hasattr(result, 'boxes'):
+            for i, box in enumerate(result.boxes):
+                # box.xyxy is [x1, y1, x2, y2] tensor
+                # Convert to list
+                coords = box.xyxy[0].cpu().numpy().tolist()
+                conf = float(box.conf[0].cpu().numpy())
+                cls_id = int(box.cls[0].cpu().numpy())
+                label = result.names[cls_id]
 
-            detections.append({
-                "box": coords, # [x1, y1, x2, y2]
-                "confidence": conf,
-                "label": label
-            })
+                detections.append({
+                    "box": coords, # [x1, y1, x2, y2]
+                    "confidence": conf,
+                    "label": label
+                })
 
-    return detections
+        return detections
+    except Exception as e:
+        logger.error(f"Pothole detection failed: {e}")
+        raise DetectionException("Failed to detect potholes in image", "pothole", details={"error": str(e)}) from e

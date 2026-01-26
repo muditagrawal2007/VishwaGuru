@@ -1,5 +1,6 @@
 
 import pytest
+import warnings
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, AsyncMock, patch
 import io
@@ -8,6 +9,10 @@ from PIL import Image
 import httpx
 import sys
 import os
+
+# Suppress warnings for clean test output
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 from pathlib import Path
 
 # Ensure repository root is importable so "backend" package resolves in tests

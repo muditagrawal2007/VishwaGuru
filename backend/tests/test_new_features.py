@@ -3,9 +3,16 @@ from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch, AsyncMock
 import os
 import io
+import warnings
 from PIL import Image
 import sys
 from pathlib import Path
+
+# Suppress warnings for clean test output
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", module="httplib2")
+warnings.filterwarnings("ignore", module="google.generativeai")
 
 # Ensure repository root is importable so "backend" package resolves in tests
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -41,7 +48,11 @@ app.state.http_client = AsyncMock()
 def test_health():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "healthy"}
+    data = response.json()
+    assert data["status"] == "healthy"
+    assert "timestamp" in data
+    assert data["version"] == "1.0.0"
+    assert "services" in data
 
 @pytest.fixture
 def mock_hf_service():

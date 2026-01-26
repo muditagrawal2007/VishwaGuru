@@ -9,6 +9,7 @@ from backend.ai_service import (
     chat_with_civic_assistant as _chat_with_civic_assistant
 )
 from backend.gemini_summary import generate_mla_summary as _generate_mla_summary
+from backend.exceptions import AIServiceException
 
 
 class GeminiActionPlanService(ActionPlanService):
@@ -21,6 +22,12 @@ class GeminiActionPlanService(ActionPlanService):
         language: str = 'en',
         image_path: Optional[str] = None
     ) -> Dict[str, str]:
+        """
+        Generate action plan using Gemini AI.
+        
+        Raises:
+            AIServiceException: If AI service fails
+        """
         return await _generate_action_plan(issue_description, category, language, image_path)
 
 
@@ -28,6 +35,12 @@ class GeminiChatService(ChatService):
     """Gemini-based implementation of chat functionality."""
 
     async def chat(self, query: str) -> str:
+        """
+        Process chat query using Gemini AI.
+        
+        Raises:
+            AIServiceException: If AI service fails
+        """
         return await _chat_with_civic_assistant(query)
 
 
@@ -41,6 +54,12 @@ class GeminiMLASummaryService(MLASummaryService):
         mla_name: str,
         issue_category: Optional[str] = None
     ) -> str:
+        """
+        Generate MLA summary using Gemini AI.
+        
+        Raises:
+            AIServiceException: If AI service fails
+        """
         return await _generate_mla_summary(district, assembly_constituency, mla_name, issue_category)
 
 

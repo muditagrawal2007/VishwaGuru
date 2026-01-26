@@ -12,13 +12,14 @@ from async_lru import alru_cache
 import asyncio
 import logging
 
+from backend.exceptions import AIServiceException
+
 # Configure logger
 logger = logging.getLogger(__name__)
 
 # Suppress deprecation warnings from google.generativeai
 warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
-
-logger = logging.getLogger(__name__)
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="google.generativeai")
 
 # Configure Gemini
 api_key = os.environ.get("GEMINI_API_KEY")
@@ -69,7 +70,11 @@ async def retry_with_exponential_backoff(
             if attempt == max_retries:
                 # Last attempt failed, re-raise the exception
                 logger.error(f"Function {func.__name__} failed after {max_retries + 1} attempts: {e}")
-                raise e
+                raise AIServiceException(
+                    f"AI service operation failed after {max_retries + 1} attempts",
+                    service="Gemini",
+                    details={"function": func.__name__, "error": str(e)}
+                ) from e
 
             # Calculate delay with exponential backoff
             delay = min(base_delay * (backoff_factor ** attempt), max_delay)
@@ -164,9 +169,16 @@ async def generate_action_plan(issue_description: str, category: str, language: 
 
     try:
         return await retry_with_exponential_backoff(_generate_with_gemini, max_retries=3)
+    except AIServiceException:
+        # Already properly wrapped, re-raise
+        raise
     except Exception as e:
         logger.error(f"Gemini action plan generation failed after retries: {e}")
-        return fallback_response
+        raise AIServiceException(
+            "Failed to generate action plan",
+            service="Gemini",
+            details={"error": str(e)}
+        ) from e
 
 @alru_cache(maxsize=100)
 async def chat_with_civic_assistant(query: str) -> str:
@@ -191,6 +203,13 @@ async def chat_with_civic_assistant(query: str) -> str:
 
     try:
         return await retry_with_exponential_backoff(_chat_with_gemini, max_retries=2)
+    except AIServiceException:
+        # Already properly wrapped, re-raise
+        raise
     except Exception as e:
         logger.error(f"Gemini chat failed after retries: {e}")
-        return "I encountered an error processing your request. Please try again later."
+        raise AIServiceException(
+            "Failed to process chat request",
+            service="Gemini",
+            details={"error": str(e)}
+        ) from e

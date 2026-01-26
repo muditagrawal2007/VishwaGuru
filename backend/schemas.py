@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict, validator, field_validator
 from typing import List, Optional, Any, Dict, Union
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 class IssueCategory(str, Enum):
@@ -139,12 +139,12 @@ class ErrorResponse(BaseModel):
     error: str = Field(..., description="Error message")
     error_code: str = Field(..., description="Error code for client handling")
     details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Error timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Error timestamp")
 
 class SuccessResponse(BaseModel):
     message: str = Field(..., description="Success message")
     data: Optional[Dict[str, Any]] = Field(None, description="Response data")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Response timestamp")
 
 
 class StatsResponse(BaseModel):

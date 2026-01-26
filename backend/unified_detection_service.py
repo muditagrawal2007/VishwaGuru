@@ -14,8 +14,9 @@ from typing import List, Dict, Optional
 from PIL import Image
 from enum import Enum
 
+from backend.exceptions import DetectionException, ServiceUnavailableException
+
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Configuration: Use local model by default
@@ -107,6 +108,10 @@ class UnifiedDetectionService:
             
         Returns:
             List of detections with 'label', 'confidence', and 'box' keys
+            
+        Raises:
+            ServiceUnavailableException: If no detection backend is available
+            DetectionException: If detection fails
         """
         backend = await self._get_detection_backend()
         
@@ -120,7 +125,7 @@ class UnifiedDetectionService:
         
         else:
             logger.error("No detection backend available")
-            return []
+            raise ServiceUnavailableException("Detection service", details={"detection_type": "vandalism"})
     
     async def detect_infrastructure(self, image: Image.Image) -> List[Dict]:
         """
@@ -131,6 +136,10 @@ class UnifiedDetectionService:
             
         Returns:
             List of detections with 'label', 'confidence', and 'box' keys
+            
+        Raises:
+            ServiceUnavailableException: If no detection backend is available
+            DetectionException: If detection fails
         """
         backend = await self._get_detection_backend()
         
@@ -144,7 +153,7 @@ class UnifiedDetectionService:
         
         else:
             logger.error("No detection backend available")
-            return []
+            raise ServiceUnavailableException("Detection service", details={"detection_type": "infrastructure"})
     
     async def detect_flooding(self, image: Image.Image) -> List[Dict]:
         """
@@ -155,6 +164,10 @@ class UnifiedDetectionService:
             
         Returns:
             List of detections with 'label', 'confidence', and 'box' keys
+            
+        Raises:
+            ServiceUnavailableException: If no detection backend is available
+            DetectionException: If detection fails
         """
         backend = await self._get_detection_backend()
         
@@ -168,7 +181,7 @@ class UnifiedDetectionService:
         
         else:
             logger.error("No detection backend available")
-            return []
+            raise ServiceUnavailableException("Detection service", details={"detection_type": "flooding"})
     
     async def detect_all(self, image: Image.Image) -> Dict[str, List[Dict]]:
         """

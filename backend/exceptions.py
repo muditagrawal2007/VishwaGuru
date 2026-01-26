@@ -79,6 +79,50 @@ class FileUploadException(VishwaGuruException):
             details=details
         )
 
+class AIServiceException(VishwaGuruException):
+    """Exception for AI service errors"""
+
+    def __init__(self, message: str, service: str = "AI", details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="AI_SERVICE_ERROR",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            details=details or {"service": service}
+        )
+
+class ModelLoadException(VishwaGuruException):
+    """Exception for ML model loading errors"""
+
+    def __init__(self, model_name: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=f"Failed to load ML model: {model_name}",
+            error_code="MODEL_LOAD_ERROR",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            details=details or {"model": model_name}
+        )
+
+class DetectionException(VishwaGuruException):
+    """Exception for image detection errors"""
+
+    def __init__(self, message: str, detection_type: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="DETECTION_ERROR",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            details=details or {"detection_type": detection_type}
+        )
+
+class ExternalAPIException(VishwaGuruException):
+    """Exception for external API failures"""
+
+    def __init__(self, api_name: str, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message=message,
+            error_code="EXTERNAL_API_ERROR",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            details=details or {"api": api_name}
+        )
+
 async def vishwaguru_exception_handler(request: Request, exc: VishwaGuruException) -> JSONResponse:
     """Handle VishwaGuru custom exceptions"""
     logger.error(

@@ -1,9 +1,14 @@
 import pytest
+import warnings
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, patch, MagicMock
 import sys
 import os
 from pathlib import Path
+
+# Suppress warnings for clean test output
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Ensure repository root is importable so "backend" package resolves in tests
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

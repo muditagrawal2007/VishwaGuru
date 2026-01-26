@@ -329,6 +329,7 @@ def root():
 def health():
     return HealthResponse(
         status="healthy",
+        timestamp=datetime.now(timezone.utc),
         version="1.0.0",
         services={
             "database": "connected",

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from contextlib import asynccontextmanager
 from functools import lru_cache
 from typing import List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from PIL import Image
 
 import json
@@ -270,6 +270,7 @@ def root():
 def health():
     return HealthResponse(
         status="healthy",
+        timestamp=datetime.now(timezone.utc),
         version="1.0.0",
         services={
             "database": "connected",

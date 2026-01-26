@@ -1,6 +1,11 @@
 import pytest
+import warnings
 from pydantic import ValidationError
 from datetime import datetime
+
+# Suppress warnings for clean test output
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 from backend.schemas import (
     IssueCategory, IssueStatus, ActionPlan, ChatRequest, ChatResponse,
     IssueResponse, IssueCreateRequest, IssueCreateResponse, VoteRequest,
