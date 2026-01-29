@@ -5,7 +5,7 @@ import {
   AlertTriangle, MapPin, Search, Activity, Camera, Trash2, ThumbsUp, Brush,
   Droplets, Zap, Truck, Flame, Dog, XCircle, Lightbulb, TreeDeciduous, Bug,
   Scan, ChevronRight, LayoutGrid, Shield, Leaf, Building, CheckCircle, Trophy, Monitor,
-  Volume2, Users, Waves, Accessibility
+  Volume2, Users, Waves, Accessibility, Siren
 } from 'lucide-react';
 
 const CameraCheckModal = ({ onClose }) => {
@@ -91,6 +91,7 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
         { id: 'vandalism', label: t('home.issues.graffiti'), icon: <Brush size={24} />, color: 'text-indigo-600', bg: 'bg-indigo-50' },
         { id: 'mh-rep', label: t('home.issues.findMLA'), icon: <Search size={24} />, color: 'text-purple-600', bg: 'bg-purple-50' },
         { id: 'accessibility', label: "Accessibility", icon: <Accessibility size={24} />, color: 'text-teal-600', bg: 'bg-teal-50' },
+        { id: 'severity', label: "Urgency Check", icon: <Siren size={24} />, color: 'text-red-600', bg: 'bg-red-50' },
       ]
     }
   ];
