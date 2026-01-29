@@ -5,6 +5,7 @@
 ![VishwaGuru Banner](https://img.shields.io/badge/VishwaGuru-Civic%20Engagement-blue?style=for-the-badge&logo=github)
 ![License](https://img.shields.io/badge/License-AGPL--3.0-green?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.8+-blue?style=flat-square&logo=python)
+![Visitors](https://visitor-badge.laobi.icu/badge?page_id=RohanExploit.VishwaGuru&style=flat-square)
 ![React](https://img.shields.io/badge/React-18+-61dafb?style=flat-square&logo=react)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi)
 ![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=flat-square&logo=firebase)
