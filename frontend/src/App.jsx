@@ -33,6 +33,7 @@ const NoiseDetector = React.lazy(() => import('./NoiseDetector'));
 const WaterLeakDetector = React.lazy(() => import('./WaterLeakDetector'));
 const AccessibilityDetector = React.lazy(() => import('./AccessibilityDetector'));
 const CrowdDetector = React.lazy(() => import('./CrowdDetector'));
+const SeverityDetector = React.lazy(() => import('./SeverityDetector'));
 
 // Create a wrapper component to handle state management
 function AppContent() {
@@ -46,7 +47,7 @@ function AppContent() {
 
   // Safe navigation helper
   const navigateToView = (view) => {
-    const validViews = ['home', 'map', 'report', 'action', 'mh-rep', 'stats', 'leaderboard', 'pothole', 'garbage', 'vandalism', 'flood', 'infrastructure', 'parking', 'streetlight', 'fire', 'animal', 'blocked', 'tree', 'pest', 'smart-scan', 'noise', 'water-leak', 'accessibility', 'crowd'];
+    const validViews = ['home', 'map', 'report', 'action', 'mh-rep', 'stats', 'leaderboard', 'pothole', 'garbage', 'vandalism', 'flood', 'infrastructure', 'parking', 'streetlight', 'fire', 'animal', 'blocked', 'tree', 'pest', 'smart-scan', 'noise', 'water-leak', 'accessibility', 'crowd', 'severity'];
     if (validViews.includes(view)) {
       navigate(view === 'home' ? '/' : `/${view}`);
     }
@@ -240,6 +241,7 @@ function AppContent() {
             <Route path="/water-leak" element={<WaterLeakDetector onBack={() => navigate('/')} />} />
             <Route path="/accessibility" element={<AccessibilityDetector onBack={() => navigate('/')} />} />
             <Route path="/crowd" element={<CrowdDetector onBack={() => navigate('/')} />} />
+            <Route path="/severity" element={<SeverityDetector onBack={() => navigate('/')} />} />
             <Route path="/verify/:id" element={<VerifyView />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
