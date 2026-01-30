@@ -4,11 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import func
-from sqlalchemy.orm import Session, defer
+from sqlalchemy.orm import Session, defer, joinedload
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 from functools import lru_cache
-from typing import List, Union, Any, Dict
+from typing import List, Union, Any, Dict, Optional
 from datetime import datetime, timedelta, timezone
 from PIL import Image
 
@@ -52,7 +52,6 @@ from backend.maharashtra_locator import (
 from backend.init_db import migrate_db
 from backend.pothole_detection import detect_potholes, validate_image_for_processing
 from backend.grievance_service import GrievanceService
-from backend.pothole_detection import detect_potholes, validate_image_for_processing
 from backend.garbage_detection import detect_garbage
 from backend.local_ml_service import (
     detect_infrastructure_local,
