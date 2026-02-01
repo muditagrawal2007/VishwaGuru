@@ -40,6 +40,7 @@ def client_with_mock_http():
          # If we set it here, lifespan might overwrite it.
 
          # Option: Patch httpx.AsyncClient to return our mock
+         mock_http.__aenter__.return_value = mock_http
          with patch("httpx.AsyncClient", return_value=mock_http):
              with TestClient(app) as c:
                  # After startup, app.state.http_client should be set.

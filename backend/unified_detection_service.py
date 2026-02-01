@@ -189,6 +189,44 @@ class UnifiedDetectionService:
         else:
             logger.error("No detection backend available")
             raise ServiceUnavailableException("Detection service", details={"detection_type": "flooding"})
+
+    async def detect_garbage(self, image: Image.Image) -> List[Dict]:
+        """
+        Detect garbage/waste in an image.
+
+        Args:
+            image: PIL Image to analyze
+
+        Returns:
+            List of detections with 'label', 'confidence', and 'box' keys.
+            For HF/CLIP, 'box' will be empty as it classifies the whole image.
+        """
+        backend = await self._get_detection_backend()
+
+        if backend == "local":
+            from backend.garbage_detection import detect_garbage
+            # Local model expects image source, but PIL image works if model supports it
+            # The existing detect_garbage uses model.predict(image_source)
+            # Ultralytics YOLO supports PIL Image directly
+            from fastapi.concurrency import run_in_threadpool
+            return await run_in_threadpool(detect_garbage, image)
+
+        elif backend == "huggingface":
+            from backend.hf_api_service import detect_waste_clip
+            result = await detect_waste_clip(image)
+
+            # Map classification to detection format
+            if result and result.get("waste_type") != "unknown":
+                return [{
+                    "label": result["waste_type"],
+                    "confidence": result.get("confidence", 0.0),
+                    "box": [] # No bounding box for classification
+                }]
+            return []
+
+        else:
+            logger.error("No detection backend available")
+            raise ServiceUnavailableException("Detection service", details={"detection_type": "garbage"})
     
     async def detect_all(self, image: Image.Image) -> Dict[str, List[Dict]]:
         """
@@ -203,7 +241,8 @@ class UnifiedDetectionService:
         return {
             "vandalism": await self.detect_vandalism(image),
             "infrastructure": await self.detect_infrastructure(image),
-            "flooding": await self.detect_flooding(image)
+            "flooding": await self.detect_flooding(image),
+            "garbage": await self.detect_garbage(image)
         }
     
     async def get_status(self) -> Dict:
@@ -267,6 +306,11 @@ async def detect_infrastructure(image: Image.Image) -> List[Dict]:
 async def detect_flooding(image: Image.Image) -> List[Dict]:
     """Detect flooding using the default service."""
     return await get_detection_service().detect_flooding(image)
+
+
+async def detect_garbage(image: Image.Image) -> List[Dict]:
+    """Detect garbage using the default service."""
+    return await get_detection_service().detect_garbage(image)
 
 
 async def detect_all(image: Image.Image) -> Dict[str, List[Dict]]:

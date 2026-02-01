@@ -59,6 +59,10 @@ class Jurisdiction(Base):
 
 class Grievance(Base):
     __tablename__ = "grievances"
+    __table_args__ = (
+        Index("ix_grievances_status_lat_lon", "status", "latitude", "longitude"),
+        Index("ix_grievances_status_jurisdiction", "status", "current_jurisdiction_id"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     unique_id = Column(String, unique=True, index=True)  # Auto-generated unique identifier
@@ -68,6 +72,9 @@ class Grievance(Base):
     city = Column(String, nullable=True)
     district = Column(String, nullable=True)
     state = Column(String, nullable=True)
+    latitude = Column(Float, nullable=True, index=True)
+    longitude = Column(Float, nullable=True, index=True)
+    address = Column(String, nullable=True)
     current_jurisdiction_id = Column(Integer, ForeignKey("jurisdictions.id"), nullable=False)
     assigned_authority = Column(String, nullable=False)
     sla_deadline = Column(DateTime, nullable=False)

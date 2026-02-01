@@ -82,6 +82,12 @@ class GrievanceService:
             # Generate unique ID
             unique_id = str(uuid.uuid4())[:8].upper()
 
+            # Extract location data
+            location_data = grievance_data.get('location', {})
+            latitude = location_data.get('latitude') if isinstance(location_data, dict) else None
+            longitude = location_data.get('longitude') if isinstance(location_data, dict) else None
+            address = location_data.get('address') if isinstance(location_data, dict) else None
+
             # Create grievance
             grievance = Grievance(
                 unique_id=unique_id,
@@ -91,6 +97,9 @@ class GrievanceService:
                 city=grievance_data.get('city'),
                 district=grievance_data.get('district'),
                 state=grievance_data.get('state'),
+                latitude=latitude,
+                longitude=longitude,
+                address=address,
                 current_jurisdiction_id=jurisdiction.id,
                 assigned_authority=assigned_authority,
                 sla_deadline=sla_deadline,

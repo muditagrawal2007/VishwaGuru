@@ -105,6 +105,54 @@ def migrate_db():
                 # Index likely already exists
                 pass
 
+            # --- Grievance Migrations ---
+            # Add latitude column to grievances
+            try:
+                conn.execute(text("ALTER TABLE grievances ADD COLUMN latitude FLOAT"))
+                logger.info("Migrated database: Added latitude column to grievances.")
+            except Exception:
+                pass
+
+            # Add longitude column to grievances
+            try:
+                conn.execute(text("ALTER TABLE grievances ADD COLUMN longitude FLOAT"))
+                logger.info("Migrated database: Added longitude column to grievances.")
+            except Exception:
+                pass
+
+            # Add address column to grievances
+            try:
+                conn.execute(text("ALTER TABLE grievances ADD COLUMN address VARCHAR"))
+                logger.info("Migrated database: Added address column to grievances.")
+            except Exception:
+                pass
+
+            # Add index on latitude (grievances)
+            try:
+                conn.execute(text("CREATE INDEX ix_grievances_latitude ON grievances (latitude)"))
+            except Exception:
+                pass
+
+            # Add index on longitude (grievances)
+            try:
+                conn.execute(text("CREATE INDEX ix_grievances_longitude ON grievances (longitude)"))
+            except Exception:
+                pass
+
+            # Add composite index for spatial+status (grievances)
+            try:
+                conn.execute(text("CREATE INDEX ix_grievances_status_lat_lon ON grievances (status, latitude, longitude)"))
+                logger.info("Migrated database: Added composite index on status, latitude, longitude for grievances.")
+            except Exception:
+                pass
+
+            # Add composite index for status+jurisdiction (grievances)
+            try:
+                conn.execute(text("CREATE INDEX ix_grievances_status_jurisdiction ON grievances (status, current_jurisdiction_id)"))
+                logger.info("Migrated database: Added composite index on status, jurisdiction for grievances.")
+            except Exception:
+                pass
+
             conn.commit()
             logger.info("Database migration check completed.")
     except Exception as e:
