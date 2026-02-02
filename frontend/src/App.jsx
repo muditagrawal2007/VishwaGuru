@@ -1,3 +1,12 @@
+ optimize-lazy-loading-313
+import React, { useState, useEffect, Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { fakeRecentIssues, fakeResponsibilityMap } from './fakeData';
+import { issuesApi, miscApi } from './api';
+
+// Lazy loaded components
+const ChatWidget = React.lazy(() => import('./components/ChatWidget'));
+
 import React, { useState, useEffect, Suspense, useCallback, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import ChatWidget from './components/ChatWidget';
@@ -6,6 +15,7 @@ import { issuesApi, miscApi } from './api';
 
 // Lazy Load Views
 const Landing = React.lazy(() => import('./views/Landing'));
+
 const Home = React.lazy(() => import('./views/Home'));
 const MapView = React.lazy(() => import('./views/MapView'));
 const ReportForm = React.lazy(() => import('./views/ReportForm'));
@@ -16,6 +26,29 @@ const StatsView = React.lazy(() => import('./views/StatsView'));
 const LeaderboardView = React.lazy(() => import('./views/LeaderboardView'));
 const GrievanceView = React.lazy(() => import('./views/GrievanceView'));
 const NotFound = React.lazy(() => import('./views/NotFound'));
+ optimize-lazy-loading-313
+const PotholeDetector = React.lazy(() => import('./PotholeDetector'));
+const GarbageDetector = React.lazy(() => import('./GarbageDetector'));
+const VandalismDetector = React.lazy(() => import('./VandalismDetector'));
+const FloodDetector = React.lazy(() => import('./FloodDetector'));
+const InfrastructureDetector = React.lazy(() => import('./InfrastructureDetector'));
+const IllegalParkingDetector = React.lazy(() => import('./IllegalParkingDetector'));
+const StreetLightDetector = React.lazy(() => import('./StreetLightDetector'));
+const FireDetector = React.lazy(() => import('./FireDetector'));
+const StrayAnimalDetector = React.lazy(() => import('./StrayAnimalDetector'));
+const BlockedRoadDetector = React.lazy(() => import('./BlockedRoadDetector'));
+const TreeDetector = React.lazy(() => import('./TreeDetector'));
+const PestDetector = React.lazy(() => import('./PestDetector'));
+const SmartScanner = React.lazy(() => import('./SmartScanner'));
+
+// Loader
+const Loader = () => (
+  <div className="flex justify-center my-8">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+  </div>
+);
+
+
 
 // Lazy Load Detectors
 const DETECTORS = {
@@ -300,7 +333,7 @@ const FloatingActions = ({ setView }) => {
                 setIsOpen(false);
               }}
               className={`flex items-center gap-3 bg-gradient-to-r ${action.bgColor} text-white shadow-xl rounded-full px-5 py-3 hover:shadow-2xl transform hover:scale-105 transition-all duration-300 group min-w-[180px] justify-end`}
-            >
+            
               <span className="text-lg transform group-hover:scale-110 transition-transform duration-300">
                 {action.icon}
               </span>
@@ -386,6 +419,7 @@ const FloatingButtonsManager = ({ setView }) => {
 };
 
 // App content with state management
+
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -396,6 +430,47 @@ function AppContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+
+ optimize-lazy-loading-313
+  const navigateToView = (view) => {
+    const validViews = [
+      'home','map','report','action','mh-rep','pothole','garbage',
+      'vandalism','flood','infrastructure','parking','streetlight',
+      'fire','animal','blocked','tree','pest','smart-scan'
+    ];
+    if(validViews.includes(view)){
+      navigate(view==='home'?'/':`/${view}`);
+    }
+  };
+
+  useEffect(() => {
+    const fetchRecentIssues = async () => {
+      try {
+        const data = await issuesApi.getRecent();
+        setRecentIssues(data);
+      } catch {
+        setRecentIssues(fakeRecentIssues);
+      }
+    };
+    fetchRecentIssues();
+  }, []);
+
+  const handleUpvote = async (id) => {
+    try{
+      await issuesApi.vote(id);
+      setRecentIssues(prev => prev.map(issue => issue.id===id?{...issue, upvotes:(issue.upvotes||0)+1}:issue));
+    }catch{}
+  };
+
+  const fetchResponsibilityMap = async () => {
+    setLoading(true); setError(null);
+    try{
+      const data = await miscApi.getResponsibilityMap();
+      setResponsibilityMap(data); navigate('/map');
+    }catch{
+      setResponsibilityMap(fakeResponsibilityMap); navigate('/map');
+    }finally{ setLoading(false);}
+  };
 
   // Clear messages after timeout
   useEffect(() => {
@@ -480,6 +555,7 @@ function AppContent() {
     const currentPath = location.pathname.split('/')[1];
     return Object.keys(DETECTORS).includes(currentPath);
   }, [location.pathname]);
+  
 
   // Check if we're on the landing page
   const isLandingPage = location.pathname === '/';
@@ -499,6 +575,52 @@ function AppContent() {
 
   // Otherwise render the main app layout
   return (
+optimize-lazy-loading-313
+    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
+      <Suspense fallback={<Loader />}><ChatWidget /></Suspense>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen flex flex-col">
+        <header className="text-center mb-8 pb-6 border-b border-gray-200">
+          <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-blue-600 tracking-tight">
+            VishwaGuru
+          </h1>
+          <p className="text-gray-500 font-medium mt-2">Empowering Citizens, Solving Problems.</p>
+        </header>
+
+        <main className="flex-grow w-full max-w-5xl mx-auto bg-white shadow-xl rounded-2xl p-6 sm:p-8 border border-gray-100">
+          {loading && <Loader />}
+          {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center my-4">{error}</div>}
+
+          <Suspense fallback={<Loader />}>
+            <Routes>
+              <Route path="/" element={<Home setView={navigateToView} fetchResponsibilityMap={fetchResponsibilityMap} recentIssues={recentIssues} handleUpvote={handleUpvote}/>} />
+              <Route path="/map" element={<MapView responsibilityMap={responsibilityMap} setView={navigateToView}/>} />
+              <Route path="/report" element={<ReportForm setView={navigateToView} setLoading={setLoading} setError={setError} setActionPlan={setActionPlan} loading={loading}/>} />
+              <Route path="/action" element={<ActionView actionPlan={actionPlan} setActionPlan={setActionPlan} setView={navigateToView}/>} />
+              <Route path="/mh-rep" element={<MaharashtraRepView setView={navigateToView} setLoading={setLoading} setError={setError} setMaharashtraRepInfo={setMaharashtraRepInfo} maharashtraRepInfo={maharashtraRepInfo} loading={loading}/>} />
+              
+              <Route path="/pothole" element={<PotholeDetector onBack={() => navigate('/')}/>} />
+              <Route path="/garbage" element={<GarbageDetector onBack={() => navigate('/')}/>} />
+              <Route path="/vandalism" element={<VandalismDetector />} />
+              <Route path="/flood" element={<FloodDetector />} />
+              <Route path="/infrastructure" element={<InfrastructureDetector onBack={() => navigate('/')}/>} />
+              <Route path="/parking" element={<IllegalParkingDetector onBack={() => navigate('/')}/>} />
+              <Route path="/streetlight" element={<StreetLightDetector onBack={() => navigate('/')}/>} />
+              <Route path="/fire" element={<FireDetector onBack={() => navigate('/')}/>} />
+              <Route path="/animal" element={<StrayAnimalDetector onBack={() => navigate('/')}/>} />
+              <Route path="/blocked" element={<BlockedRoadDetector onBack={() => navigate('/')}/>} />
+              <Route path="/tree" element={<TreeDetector onBack={() => navigate('/')}/>} />
+              <Route path="/pest" element={<PestDetector onBack={() => navigate('/')}/>} />
+              <Route path="/smart-scan" element={<SmartScanner onBack={() => navigate('/')}/>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </main>
+
+        <footer className="mt-8 text-center text-gray-400 text-sm pb-8">
+          &copy; {new Date().getFullYear()} VishwaGuru. All rights reserved.
+        </footer>
+
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-100 text-gray-900 font-sans overflow-hidden">
       {/* Animated background elements */}
       <div className="fixed inset-0 z-0 pointer-events-none">
@@ -632,19 +754,26 @@ function AppContent() {
 
           <AppFooter />
         </div>
+
       </div>
     </div>
   );
 }
 
+optimize-lazy-loading-313
+export default function App() {
+
 // Main App Component
 function App() {
+
   return (
     <Router>
       <AppContent />
     </Router>
   );
 }
+ optimize-lazy-loading-313
+
 
 export default App;
 
@@ -780,3 +909,4 @@ const GlobalStyles = () => (
     }
   `}</style>
 );
+
