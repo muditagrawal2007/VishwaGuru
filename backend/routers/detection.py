@@ -32,7 +32,8 @@ from backend.hf_api_service import (
     detect_audio_event,
     transcribe_audio,
     detect_waste_clip,
-    detect_civic_eye_clip
+    detect_civic_eye_clip,
+    detect_graffiti_art_clip
 )
 from backend.dependencies import get_http_client
 import backend.dependencies
@@ -62,6 +63,10 @@ async def _cached_detect_waste(image_bytes: bytes):
 @alru_cache(maxsize=100)
 async def _cached_detect_civic_eye(image_bytes: bytes):
     return await detect_civic_eye_clip(image_bytes, client=backend.dependencies.SHARED_HTTP_CLIENT)
+
+@alru_cache(maxsize=100)
+async def _cached_detect_graffiti(image_bytes: bytes):
+    return await detect_graffiti_art_clip(image_bytes, client=backend.dependencies.SHARED_HTTP_CLIENT)
 
 # Endpoints
 
@@ -447,4 +452,21 @@ async def detect_civic_eye_endpoint(image: UploadFile = File(...)):
         return await _cached_detect_civic_eye(image_bytes)
     except Exception as e:
         logger.error(f"Civic Eye detection error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.post("/api/detect-graffiti")
+async def detect_graffiti_endpoint(image: UploadFile = File(...)):
+    # Validate uploaded file
+    await validate_uploaded_file(image)
+
+    try:
+        image_bytes = await image.read()
+    except Exception as e:
+        logger.error(f"Invalid image file: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail="Invalid image file")
+
+    try:
+        return {"detections": await _cached_detect_graffiti(image_bytes)}
+    except Exception as e:
+        logger.error(f"Graffiti detection error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")

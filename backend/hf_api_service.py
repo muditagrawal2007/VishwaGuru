@@ -432,3 +432,11 @@ async def detect_civic_eye_clip(image: Union[Image.Image, bytes], client: httpx.
         "cleanliness": {"status": cleanliness['label'], "score": cleanliness['score']},
         "infrastructure": {"status": infra['label'], "score": infra['score']}
     }
+
+async def detect_graffiti_art_clip(image: Union[Image.Image, bytes], client: httpx.AsyncClient = None):
+    """
+    Distinguish between artistic mural (legal) and graffiti vandalism (illegal).
+    """
+    labels = ["artistic mural", "street art", "graffiti tag", "vandalism", "clean wall"]
+    targets = ["artistic mural", "street art", "graffiti tag", "vandalism"]
+    return await _detect_clip_generic(image, labels, targets, client)

@@ -35,6 +35,9 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [uploading, setUploading] = useState(false);
   const [analysisErrors, setAnalysisErrors] = useState({});
+  const [nearbyIssues, setNearbyIssues] = useState([]);
+  const [checkingNearby, setCheckingNearby] = useState(false);
+  const [showNearbyModal, setShowNearbyModal] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -285,6 +288,26 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
     }
   };
 
+  const checkNearbyIssues = async () => {
+    if (!formData.latitude || !formData.longitude) {
+       getLocation(); // Try to get location first
+       return;
+    }
+    setCheckingNearby(true);
+    try {
+        const response = await fetch(`${API_URL}/api/issues/nearby?latitude=${formData.latitude}&longitude=${formData.longitude}&radius=50`);
+        if (response.ok) {
+            const data = await response.json();
+            setNearbyIssues(data);
+            setShowNearbyModal(true);
+        }
+    } catch (e) {
+        console.error("Failed to check nearby issues", e);
+    } finally {
+        setCheckingNearby(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -345,6 +368,14 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
       if (!response.ok) throw new Error('Failed to submit issue');
 
       const data = await response.json();
+
+      if (data.deduplication_info && data.deduplication_info.has_nearby_issues && !data.id) {
+        setSubmitStatus({ state: 'success', message: 'Report linked to existing issue!' });
+        alert("We found a similar issue nearby reported recently. Your report has been linked to it to increase its priority!");
+        setView('home');
+        return;
+      }
+
       if (data.action_plan) {
         setActionPlan(data.action_plan);
       } else {
@@ -491,6 +522,17 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
                     {gettingLocation ? '...' : '📍'}
                 </button>
              </div>
+             {formData.latitude && (
+                 <button
+                    type="button"
+                    onClick={checkNearbyIssues}
+                    disabled={checkingNearby}
+                    className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+                 >
+                    {checkingNearby ? <Loader2 size={12} className="animate-spin"/> : <Layers size={12} />}
+                    Check for existing reports nearby
+                 </button>
+             )}
           </div>
 
           <div>
@@ -629,6 +671,49 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
           )}
           <button type="button" onClick={() => setView('home')} className="mt-2 text-gray-500 hover:text-gray-700 underline text-center w-full block text-sm">Cancel</button>
        </form>
+
+      {showNearbyModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-xl">
+              <h3 className="font-bold text-gray-800">Nearby Issues ({nearbyIssues.length})</h3>
+              <button onClick={() => setShowNearbyModal(false)} className="text-gray-500 hover:text-gray-700">
+                <CheckCircle2 size={24} className="rotate-45" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-4 space-y-3 custom-scrollbar flex-1">
+              {nearbyIssues.length === 0 ? (
+                <p className="text-center text-gray-500 py-4">No similar issues found nearby. You are good to report!</p>
+              ) : (
+                nearbyIssues.map(issue => (
+                  <div key={issue.id} className="border rounded-lg p-3 hover:bg-gray-50">
+                    <div className="flex justify-between items-start">
+                      <span className="text-xs font-bold uppercase bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">{issue.category}</span>
+                      <span className="text-xs text-gray-500">{Math.round(issue.distance_meters)}m away</span>
+                    </div>
+                    <p className="text-sm font-medium mt-1">{issue.description}</p>
+                    <div className="flex justify-between items-center mt-2">
+                        <span className="text-xs text-gray-400">{new Date(issue.created_at).toLocaleDateString()}</span>
+                        <div className="flex gap-2">
+                            <span className="text-xs font-bold text-blue-600">{issue.upvotes} Upvotes</span>
+                            <span className={`text-xs font-bold px-1.5 rounded ${issue.status === 'open' ? 'text-green-600 bg-green-50' : 'text-gray-600 bg-gray-50'}`}>{issue.status}</span>
+                        </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="p-4 border-t bg-gray-50 rounded-b-xl">
+               <button
+                 onClick={() => setShowNearbyModal(false)}
+                 className="w-full bg-blue-600 text-white py-2 rounded-lg font-bold"
+               >
+                 {nearbyIssues.length > 0 ? "I'll Report Anyway (New Issue)" : "Continue"}
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

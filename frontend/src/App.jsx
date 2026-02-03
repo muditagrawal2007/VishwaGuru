@@ -1,12 +1,3 @@
- optimize-lazy-loading-313
-import React, { useState, useEffect, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
-import { fakeRecentIssues, fakeResponsibilityMap } from './fakeData';
-import { issuesApi, miscApi } from './api';
-
-// Lazy loaded components
-const ChatWidget = React.lazy(() => import('./components/ChatWidget'));
-
 import React, { useState, useEffect, Suspense, useCallback, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import ChatWidget from './components/ChatWidget';
@@ -15,7 +6,6 @@ import { issuesApi, miscApi } from './api';
 
 // Lazy Load Views
 const Landing = React.lazy(() => import('./views/Landing'));
-
 const Home = React.lazy(() => import('./views/Home'));
 const MapView = React.lazy(() => import('./views/MapView'));
 const ReportForm = React.lazy(() => import('./views/ReportForm'));
@@ -26,29 +16,6 @@ const StatsView = React.lazy(() => import('./views/StatsView'));
 const LeaderboardView = React.lazy(() => import('./views/LeaderboardView'));
 const GrievanceView = React.lazy(() => import('./views/GrievanceView'));
 const NotFound = React.lazy(() => import('./views/NotFound'));
- optimize-lazy-loading-313
-const PotholeDetector = React.lazy(() => import('./PotholeDetector'));
-const GarbageDetector = React.lazy(() => import('./GarbageDetector'));
-const VandalismDetector = React.lazy(() => import('./VandalismDetector'));
-const FloodDetector = React.lazy(() => import('./FloodDetector'));
-const InfrastructureDetector = React.lazy(() => import('./InfrastructureDetector'));
-const IllegalParkingDetector = React.lazy(() => import('./IllegalParkingDetector'));
-const StreetLightDetector = React.lazy(() => import('./StreetLightDetector'));
-const FireDetector = React.lazy(() => import('./FireDetector'));
-const StrayAnimalDetector = React.lazy(() => import('./StrayAnimalDetector'));
-const BlockedRoadDetector = React.lazy(() => import('./BlockedRoadDetector'));
-const TreeDetector = React.lazy(() => import('./TreeDetector'));
-const PestDetector = React.lazy(() => import('./PestDetector'));
-const SmartScanner = React.lazy(() => import('./SmartScanner'));
-
-// Loader
-const Loader = () => (
-  <div className="flex justify-center my-8">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-  </div>
-);
-
-
 
 // Lazy Load Detectors
 const DETECTORS = {
@@ -77,6 +44,13 @@ const VALID_VIEWS = [
   'home', 'map', 'report', 'action', 'mh-rep', 'stats',
   'leaderboard', 'grievance', ...Object.keys(DETECTORS), 'verify'
 ];
+
+// Loader
+const Loader = () => (
+  <div className="flex justify-center my-8">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+  </div>
+);
 
 // Loading spinner component with enhanced design
 const LoadingSpinner = ({ className = "", size = "md", variant = "primary" }) => {
@@ -333,7 +307,7 @@ const FloatingActions = ({ setView }) => {
                 setIsOpen(false);
               }}
               className={`flex items-center gap-3 bg-gradient-to-r ${action.bgColor} text-white shadow-xl rounded-full px-5 py-3 hover:shadow-2xl transform hover:scale-105 transition-all duration-300 group min-w-[180px] justify-end`}
-            
+            >
               <span className="text-lg transform group-hover:scale-110 transition-transform duration-300">
                 {action.icon}
               </span>
@@ -408,8 +382,6 @@ const EnhancedChatWidget = () => {
 
 // Floating buttons manager component
 const FloatingButtonsManager = ({ setView }) => {
-  const [showActions, setShowActions] = useState(false);
-
   return (
     <>
       <EnhancedChatWidget />
@@ -419,7 +391,6 @@ const FloatingButtonsManager = ({ setView }) => {
 };
 
 // App content with state management
-
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -430,47 +401,6 @@ function AppContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-
- optimize-lazy-loading-313
-  const navigateToView = (view) => {
-    const validViews = [
-      'home','map','report','action','mh-rep','pothole','garbage',
-      'vandalism','flood','infrastructure','parking','streetlight',
-      'fire','animal','blocked','tree','pest','smart-scan'
-    ];
-    if(validViews.includes(view)){
-      navigate(view==='home'?'/':`/${view}`);
-    }
-  };
-
-  useEffect(() => {
-    const fetchRecentIssues = async () => {
-      try {
-        const data = await issuesApi.getRecent();
-        setRecentIssues(data);
-      } catch {
-        setRecentIssues(fakeRecentIssues);
-      }
-    };
-    fetchRecentIssues();
-  }, []);
-
-  const handleUpvote = async (id) => {
-    try{
-      await issuesApi.vote(id);
-      setRecentIssues(prev => prev.map(issue => issue.id===id?{...issue, upvotes:(issue.upvotes||0)+1}:issue));
-    }catch{}
-  };
-
-  const fetchResponsibilityMap = async () => {
-    setLoading(true); setError(null);
-    try{
-      const data = await miscApi.getResponsibilityMap();
-      setResponsibilityMap(data); navigate('/map');
-    }catch{
-      setResponsibilityMap(fakeResponsibilityMap); navigate('/map');
-    }finally{ setLoading(false);}
-  };
 
   // Clear messages after timeout
   useEffect(() => {
@@ -550,13 +480,6 @@ function AppContent() {
     fetchRecentIssues();
   }, [fetchRecentIssues]);
 
-  // Determine if current route is a detector
-  const isDetectorRoute = useMemo(() => {
-    const currentPath = location.pathname.split('/')[1];
-    return Object.keys(DETECTORS).includes(currentPath);
-  }, [location.pathname]);
-  
-
   // Check if we're on the landing page
   const isLandingPage = location.pathname === '/';
 
@@ -575,52 +498,6 @@ function AppContent() {
 
   // Otherwise render the main app layout
   return (
-optimize-lazy-loading-313
-    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
-      <Suspense fallback={<Loader />}><ChatWidget /></Suspense>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen flex flex-col">
-        <header className="text-center mb-8 pb-6 border-b border-gray-200">
-          <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-blue-600 tracking-tight">
-            VishwaGuru
-          </h1>
-          <p className="text-gray-500 font-medium mt-2">Empowering Citizens, Solving Problems.</p>
-        </header>
-
-        <main className="flex-grow w-full max-w-5xl mx-auto bg-white shadow-xl rounded-2xl p-6 sm:p-8 border border-gray-100">
-          {loading && <Loader />}
-          {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center my-4">{error}</div>}
-
-          <Suspense fallback={<Loader />}>
-            <Routes>
-              <Route path="/" element={<Home setView={navigateToView} fetchResponsibilityMap={fetchResponsibilityMap} recentIssues={recentIssues} handleUpvote={handleUpvote}/>} />
-              <Route path="/map" element={<MapView responsibilityMap={responsibilityMap} setView={navigateToView}/>} />
-              <Route path="/report" element={<ReportForm setView={navigateToView} setLoading={setLoading} setError={setError} setActionPlan={setActionPlan} loading={loading}/>} />
-              <Route path="/action" element={<ActionView actionPlan={actionPlan} setActionPlan={setActionPlan} setView={navigateToView}/>} />
-              <Route path="/mh-rep" element={<MaharashtraRepView setView={navigateToView} setLoading={setLoading} setError={setError} setMaharashtraRepInfo={setMaharashtraRepInfo} maharashtraRepInfo={maharashtraRepInfo} loading={loading}/>} />
-              
-              <Route path="/pothole" element={<PotholeDetector onBack={() => navigate('/')}/>} />
-              <Route path="/garbage" element={<GarbageDetector onBack={() => navigate('/')}/>} />
-              <Route path="/vandalism" element={<VandalismDetector />} />
-              <Route path="/flood" element={<FloodDetector />} />
-              <Route path="/infrastructure" element={<InfrastructureDetector onBack={() => navigate('/')}/>} />
-              <Route path="/parking" element={<IllegalParkingDetector onBack={() => navigate('/')}/>} />
-              <Route path="/streetlight" element={<StreetLightDetector onBack={() => navigate('/')}/>} />
-              <Route path="/fire" element={<FireDetector onBack={() => navigate('/')}/>} />
-              <Route path="/animal" element={<StrayAnimalDetector onBack={() => navigate('/')}/>} />
-              <Route path="/blocked" element={<BlockedRoadDetector onBack={() => navigate('/')}/>} />
-              <Route path="/tree" element={<TreeDetector onBack={() => navigate('/')}/>} />
-              <Route path="/pest" element={<PestDetector onBack={() => navigate('/')}/>} />
-              <Route path="/smart-scan" element={<SmartScanner onBack={() => navigate('/')}/>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </main>
-
-        <footer className="mt-8 text-center text-gray-400 text-sm pb-8">
-          &copy; {new Date().getFullYear()} VishwaGuru. All rights reserved.
-        </footer>
-
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-100 text-gray-900 font-sans overflow-hidden">
       {/* Animated background elements */}
       <div className="fixed inset-0 z-0 pointer-events-none">
@@ -760,153 +637,13 @@ optimize-lazy-loading-313
   );
 }
 
-optimize-lazy-loading-313
-export default function App() {
-
 // Main App Component
 function App() {
-
   return (
     <Router>
       <AppContent />
     </Router>
   );
 }
- optimize-lazy-loading-313
-
 
 export default App;
-
-// Add custom animations to global styles
-const GlobalStyles = () => (
-  <style jsx global>{`
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    
-    @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    
-    @keyframes gradient {
-      0%, 100% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-    }
-    
-    @keyframes gradient-slow {
-      0%, 100% { opacity: 0.3; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(1.02); }
-    }
-    
-    @keyframes pulse-slow {
-      0%, 100% { opacity: 0.5; }
-      50% { opacity: 0.8; }
-    }
-    
-    @keyframes loading-bar {
-      0% { transform: translateX(-100%); }
-      50% { transform: translateX(20%); }
-      100% { transform: translateX(100%); }
-    }
-    
-    @keyframes float {
-      0%, 100% { transform: translateY(0px); }
-      50% { transform: translateY(-10px); }
-    }
-    
-    .animate-fadeIn {
-      animation: fadeIn 0.5s ease-out;
-    }
-    
-    .animate-fadeInUp {
-      animation: fadeInUp 0.6s ease-out;
-    }
-    
-    .animate-gradient {
-      background-size: 200% auto;
-      animation: gradient 3s ease infinite;
-    }
-    
-    .animate-gradient-slow {
-      animation: gradient-slow 6s ease-in-out infinite;
-    }
-    
-    .animate-pulse-slow {
-      animation: pulse-slow 3s ease-in-out infinite;
-    }
-    
-    .animate-loading-bar {
-      animation: loading-bar 1.5s ease-in-out infinite;
-    }
-    
-    .animate-float {
-      animation: float 3s ease-in-out infinite;
-    }
-    
-    .animation-delay-1000 {
-      animation-delay: 1s;
-    }
-    
-    .animation-delay-2000 {
-      animation-delay: 2s;
-    }
-    
-    /* Smooth scroll behavior */
-    html {
-      scroll-behavior: smooth;
-    }
-    
-    /* Custom scrollbar */
-    ::-webkit-scrollbar {
-      width: 10px;
-    }
-    
-    ::-webkit-scrollbar-track {
-      background: rgba(0, 0, 0, 0.05);
-      border-radius: 5px;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-      background: linear-gradient(to bottom, #f97316, #3b82f6);
-      border-radius: 5px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-      background: linear-gradient(to bottom, #ea580c, #2563eb);
-    }
-    
-    /* Selection color */
-    ::selection {
-      background: rgba(249, 115, 22, 0.3);
-      color: #1f2937;
-    }
-    
-    /* Responsive adjustments */
-    @media (max-width: 768px) {
-      .floating-actions {
-        bottom: 100px;
-        right: 16px;
-      }
-      
-      .floating-chat {
-        bottom: 24px;
-        right: 16px;
-      }
-    }
-    
-    @media (max-width: 480px) {
-      .floating-actions {
-        bottom: 120px;
-        right: 12px;
-      }
-      
-      .floating-chat {
-        bottom: 20px;
-        right: 12px;
-      }
-    }
-  `}</style>
-);
-
