@@ -302,8 +302,9 @@ async def verify_issue_endpoint(
 
     if image:
         # AI Verification Logic
-        # Optimized Image Processing: Validation + Optimization in one pass
-        await process_uploaded_image(image)
+        # Validate uploaded file
+        await validate_uploaded_file(image)
+        # We can ignore the returned PIL image here as we need bytes for the external API
 
         try:
             image_bytes = await image.read()
