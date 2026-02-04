@@ -73,11 +73,13 @@ async def _cached_detect_graffiti(image_bytes: bytes):
 @router.post("/api/detect-pothole", response_model=DetectionResponse)
 async def detect_pothole_endpoint(image: UploadFile = File(...)):
     # Validate uploaded file
-    await validate_uploaded_file(image)
+    pil_image = await validate_uploaded_file(image)
 
     # Convert to PIL Image directly from file object to save memory
     try:
-        pil_image = await run_in_threadpool(Image.open, image.file)
+        if pil_image is None:
+            pil_image = await run_in_threadpool(Image.open, image.file)
+
         # Validate image for processing
         await run_in_threadpool(validate_image_for_processing, pil_image)
     except HTTPException:

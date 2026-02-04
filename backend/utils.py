@@ -53,9 +53,10 @@ def check_upload_limits(identifier: str, limit: int) -> None:
     recent_uploads.append(now)
     user_upload_cache.set(recent_uploads, identifier)
 
-def _validate_uploaded_file_sync(file: UploadFile) -> None:
+def _validate_uploaded_file_sync(file: UploadFile) -> Optional[Image.Image]:
     """
     Synchronous validation logic to be run in a threadpool.
+    Returns the PIL Image if it was opened/processed, or None.
     """
     # Check file size
     file.file.seek(0, 2)  # Seek to end
@@ -108,6 +109,12 @@ def _validate_uploaded_file_sync(file: UploadFile) -> None:
                 file.size = output.tell()
                 output.seek(0)
 
+            # Return the image object (resized or original)
+            # Ensure file pointer is at start for any subsequent reads from file.file
+            file.file.seek(0)
+
+            return img
+
         except Exception as pil_error:
             logger.error(f"PIL validation failed for {file.filename}: {pil_error}")
             raise HTTPException(
@@ -124,11 +131,12 @@ def _validate_uploaded_file_sync(file: UploadFile) -> None:
             detail="Unable to validate file content. Please ensure it's a valid image file."
         )
 
-async def validate_uploaded_file(file: UploadFile) -> None:
+async def validate_uploaded_file(file: UploadFile) -> Optional[Image.Image]:
     """
     Validate uploaded file for security and safety (async wrapper).
+    Returns the PIL Image if it was opened/processed, or None.
     """
-    await run_in_threadpool(_validate_uploaded_file_sync, file)
+    return await run_in_threadpool(_validate_uploaded_file_sync, file)
 
 def process_uploaded_image_sync(file: UploadFile) -> io.BytesIO:
     """
@@ -207,11 +215,13 @@ async def process_and_detect(image: UploadFile, detection_func) -> DetectionResp
     Helper to process uploaded image and run detection.
     """
     # Validate uploaded file
-    await validate_uploaded_file(image)
+    pil_image = await validate_uploaded_file(image)
 
     # Convert to PIL Image directly from file object to save memory
     try:
-        pil_image = await run_in_threadpool(Image.open, image.file)
+        if pil_image is None:
+            pil_image = await run_in_threadpool(Image.open, image.file)
+
         # Validate image for processing
         await run_in_threadpool(validate_image_for_processing, pil_image)
     except HTTPException:
@@ -228,19 +238,25 @@ async def process_and_detect(image: UploadFile, detection_func) -> DetectionResp
         logger.error(f"Detection error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Detection service temporarily unavailable")
 
-def save_file_blocking(file_obj, path):
+def save_file_blocking(file_obj, path, image: Optional[Image.Image] = None):
     """
     Save uploaded file with security measures.
     """
     try:
         # Try to open as image with PIL
-        img = Image.open(file_obj)
+        if image:
+             img = image
+        else:
+             img = Image.open(file_obj)
+
         # Strip EXIF data by creating a new image without metadata
         # Use paste() instead of getdata() for O(1) performance (vs O(N) list creation)
         img_no_exif = Image.new(img.mode, img.size)
         img_no_exif.paste(img)
         # Save without EXIF
-        img_no_exif.save(path, format=img.format)
+        # Use original format if available, otherwise default to JPEG if mode is RGB, PNG if RGBA
+        fmt = img.format or ('PNG' if img.mode == 'RGBA' else 'JPEG')
+        img_no_exif.save(path, format=fmt)
         logger.info(f"Saved image {path} with EXIF metadata stripped")
     except Exception:
         # If not an image or PIL fails, save as binary
