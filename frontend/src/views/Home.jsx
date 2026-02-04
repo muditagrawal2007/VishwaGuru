@@ -52,7 +52,7 @@ const CameraCheckModal = ({ onClose }) => {
   );
 };
 
-const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) => {
+const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote, loadMoreIssues, hasMore, loadingMore }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [showCameraCheck, setShowCameraCheck] = React.useState(false);
@@ -278,6 +278,24 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
               </div>
             )}
           </div>
+          {recentIssues.length > 0 && hasMore && (
+            <div className="p-3 border-t border-gray-100 bg-gray-50/50 text-center">
+              <button
+                onClick={loadMoreIssues}
+                disabled={loadingMore}
+                className="text-sm font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50 transition-colors py-1 px-3 rounded-full hover:bg-blue-50"
+              >
+                {loadingMore ? (
+                  <span className="flex items-center gap-2 justify-center">
+                    <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    Loading...
+                  </span>
+                ) : (
+                  'Load More Activity'
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

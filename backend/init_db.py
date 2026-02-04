@@ -167,6 +167,13 @@ def migrate_db():
             except Exception:
                 pass
 
+            # Add index on assigned_authority (grievances)
+            try:
+                conn.execute(text("CREATE INDEX ix_grievances_assigned_authority ON grievances (assigned_authority)"))
+                logger.info("Migrated database: Added index on assigned_authority for grievances.")
+            except Exception:
+                pass
+
             conn.commit()
             logger.info("Database migration check completed.")
     except Exception as e:

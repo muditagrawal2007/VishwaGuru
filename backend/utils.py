@@ -130,6 +130,78 @@ async def validate_uploaded_file(file: UploadFile) -> None:
     """
     await run_in_threadpool(_validate_uploaded_file_sync, file)
 
+def process_uploaded_image_sync(file: UploadFile) -> io.BytesIO:
+    """
+    Synchronously validate, resize, and strip EXIF from uploaded image.
+    Returns the processed image data as BytesIO.
+    """
+    # Check file size
+    file.file.seek(0, 2)
+    file_size = file.file.tell()
+    file.file.seek(0)
+
+    if file_size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum size allowed is {MAX_FILE_SIZE // (1024*1024)}MB"
+        )
+
+    # Check MIME type
+    try:
+        file_content = file.file.read(1024)
+        file.file.seek(0)
+        detected_mime = magic.from_buffer(file_content, mime=True)
+
+        if detected_mime not in ALLOWED_MIME_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type. Only image files are allowed. Detected: {detected_mime}"
+            )
+
+        try:
+            img = Image.open(file.file)
+
+            # Resize if needed
+            if img.width > 1024 or img.height > 1024:
+                ratio = min(1024 / img.width, 1024 / img.height)
+                new_width = int(img.width * ratio)
+                new_height = int(img.height * ratio)
+                img = img.resize((new_width, new_height), Image.Resampling.BILINEAR)
+
+            # Strip EXIF
+            img_no_exif = Image.new(img.mode, img.size)
+            img_no_exif.paste(img)
+
+            # Save to BytesIO
+            output = io.BytesIO()
+            # Preserve format or default to JPEG
+            fmt = img.format or 'JPEG'
+            img_no_exif.save(output, format=fmt, quality=85)
+            output.seek(0)
+
+            return output
+
+        except Exception as pil_error:
+            logger.error(f"PIL processing failed: {pil_error}")
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid image file."
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing file: {e}")
+        raise HTTPException(status_code=400, detail="Unable to process file.")
+
+async def process_uploaded_image(file: UploadFile) -> io.BytesIO:
+    return await run_in_threadpool(process_uploaded_image_sync, file)
+
+def save_processed_image(file_obj: io.BytesIO, path: str):
+    """Save processed BytesIO to disk."""
+    with open(path, "wb") as buffer:
+        shutil.copyfileobj(file_obj, buffer)
+
 async def process_and_detect(image: UploadFile, detection_func) -> DetectionResponse:
     """
     Helper to process uploaded image and run detection.

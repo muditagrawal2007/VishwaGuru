@@ -9,6 +9,7 @@
 # Build environment
 [build.environment]
   NODE_VERSION = "20"
+  CI = "false"
 
 # Environment variables (set these in Netlify dashboard)
 # VITE_API_URL = https://your-backend.onrender.com
