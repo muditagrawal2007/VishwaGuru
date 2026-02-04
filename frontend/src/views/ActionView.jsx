@@ -5,30 +5,33 @@ import StatusTracker from '../components/StatusTracker';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 const ActionView = ({ actionPlan, setActionPlan, setView }) => {
-  if (!actionPlan) return null;
-
   useEffect(() => {
-    let interval;
-    if (actionPlan.status === 'generating' && actionPlan.id) {
-      interval = setInterval(async () => {
-        try {
-          const res = await fetch(`${API_URL}/api/issues/recent`);
-          if (res.ok) {
-            const data = await res.json();
-            // Find the issue by ID
-            const issue = data.find(i => i.id === actionPlan.id);
-            if (issue && issue.action_plan && issue.action_plan.whatsapp) {
-               // Plan is ready!
-               setActionPlan(issue.action_plan);
-            }
-          }
-        } catch (e) {
-          console.error("Polling error:", e);
-        }
-      }, 2000);
+    // Only poll if we have an action plan that is generating
+    if (!actionPlan || actionPlan.status !== 'generating' || !actionPlan.id) {
+        return;
     }
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/issues/recent`);
+        if (res.ok) {
+          const data = await res.json();
+          // Find the issue by ID
+          const issue = data.find(i => i.id === actionPlan.id);
+          if (issue && issue.action_plan && issue.action_plan.whatsapp) {
+             // Plan is ready!
+             setActionPlan(issue.action_plan);
+          }
+        }
+      } catch (e) {
+        console.error("Polling error:", e);
+      }
+    }, 2000);
+
     return () => clearInterval(interval);
   }, [actionPlan, setActionPlan]);
+
+  if (!actionPlan) return null;
 
   if (actionPlan.status === 'generating') {
       return (

@@ -120,17 +120,14 @@ def reset_model():
         _model_loading_error = None
         logger.info("Model singleton state has been reset.")
 
-def validate_image_for_processing(image):
-    """
-    Validates that the image is a valid PIL Image and can be processed.
-    Uses image.load() to verify integrity without closing the file pointer.
-    """
-    try:
-        image.load()
-        return True
-    except Exception as e:
-        logger.error(f"Image validation failed: {e}")
-        raise DetectionException("Invalid image content for pothole detection", "pothole", details={"error": str(e)}) from e
+    if _model is None:
+        with _model_lock:
+            if _model is None:  # Double check inside lock
+                try:
+                    _model = load_model()
+                except Exception:
+                    pass
+    return _model
 
 def detect_potholes(image_source):
     """
