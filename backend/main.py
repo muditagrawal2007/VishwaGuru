@@ -1,21 +1,11 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request, Depends, BackgroundTasks
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.concurrency import run_in_threadpool
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
 from contextlib import asynccontextmanager
-from functools import lru_cache
-from typing import List
-from datetime import datetime, timedelta
-from PIL import Image
-
-import json
 import os
-import shutil
-import uuid
-import asyncio
+import sys
+from pathlib import Path
+import httpx
 import logging
 import time
 import magic
@@ -59,83 +49,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# File upload validation constants
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-ALLOWED_MIME_TYPES = {
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'image/bmp',
-    'image/tiff'
-}
-
-def validate_uploaded_file(file: UploadFile) -> None:
-    """
-    Validate uploaded file for security and safety.
-    
-    Args:
-        file: The uploaded file to validate
-        
-    Raises:
-        HTTPException: If validation fails
-    """
-    # Check file size
-    file.file.seek(0, 2)  # Seek to end
-    file_size = file.file.tell()
-    file.file.seek(0)  # Reset to beginning
-    
-    if file_size > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413, 
-            detail=f"File too large. Maximum size allowed is {MAX_FILE_SIZE // (1024*1024)}MB"
-        )
-    
-    # Check MIME type from content using python-magic
-    try:
-        # Read first 1024 bytes for MIME detection
-        file_content = file.file.read(1024)
-        file.file.seek(0)  # Reset file pointer
-        
-        detected_mime = magic.from_buffer(file_content, mime=True)
-        
-        if detected_mime not in ALLOWED_MIME_TYPES:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid file type. Only image files are allowed. Detected: {detected_mime}"
-            )
-    except Exception as e:
-        logger.error(f"Error validating file {file.filename}: {e}")
-        raise HTTPException(
-            status_code=400,
-            detail="Unable to validate file content. Please ensure it's a valid image file."
-        )
-
-# Simple in-memory cache
-RECENT_ISSUES_CACHE = {
-    "data": None,
-    "timestamp": 0,
-    "ttl": 60  # seconds
-}
-
 # Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
-
-async def process_action_plan_background(issue_id: int, description: str, category: str, image_path: str):
-    db = SessionLocal()
-    try:
-        # Generate Action Plan (AI)
-        action_plan = await generate_action_plan(description, category, image_path)
-
-        # Update issue in DB
-        issue = db.query(Issue).filter(Issue.id == issue_id).first()
-        if issue:
-            issue.action_plan = json.dumps(action_plan)
-            db.commit()
-    except Exception as e:
-        logger.error(f"Background action plan generation failed for issue {issue_id}: {e}", exc_info=True)
-    finally:
-        db.close()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -144,6 +59,8 @@ async def lifespan(app: FastAPI):
 
     # Startup: Initialize Shared HTTP Client for external APIs (Connection Pooling)
     app.state.http_client = httpx.AsyncClient()
+    # Set global shared client in dependencies for cached functions
+    backend.dependencies.SHARED_HTTP_CLIENT = app.state.http_client
     logger.info("Shared HTTP Client initialized.")
 
     # Startup: Initialize AI services
@@ -158,6 +75,17 @@ async def lifespan(app: FastAPI):
         logger.info("AI services initialized successfully.")
     except Exception as e:
         logger.error(f"Error initializing AI services: {e}", exc_info=True)
+        # We don't raise here to allow partial startup if AI fails?
+        # Original code raised. Let's raise.
+        raise
+
+    # Startup: Initialize Grievance Service
+    try:
+        grievance_service = GrievanceService()
+        app.state.grievance_service = grievance_service
+        logger.info("Grievance service initialized successfully.")
+    except Exception as e:
+        logger.error(f"Error initializing grievance service: {e}", exc_info=True)
         raise
 
     # Startup: Load static data to avoid first-request latency
@@ -169,82 +97,69 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Error pre-loading Maharashtra data: {e}")
 
-    # Startup: Start Telegram Bot in background (non-blocking)
-    bot_task = None
-    bot_app = None
-    
-    # Start bot initialization in background to avoid blocking port binding
-    async def start_bot_background():
-        nonlocal bot_app
-        try:
-            bot_app = await run_bot()
-        except Exception as e:
-            logger.error(f"Error starting bot: {e}")
-    
-    # Create background task for bot initialization
-    bot_task = asyncio.create_task(start_bot_background())
+    # Startup: Start Telegram Bot in separate thread (non-blocking for FastAPI)
+    try:
+        start_bot_thread()
+        logger.info("Telegram bot started in separate thread.")
+    except Exception as e:
+        logger.error(f"Error starting bot thread: {e}")
     
     yield
     
     # Shutdown: Close Shared HTTP Client
-    await app.state.http_client.aclose()
+    if app.state.http_client:
+        await app.state.http_client.aclose()
     logger.info("Shared HTTP Client closed.")
 
-    # Shutdown: Stop Telegram Bot
-    if bot_task and not bot_task.done():
-        try:
-            bot_task.cancel()
-            await bot_task
-        except asyncio.CancelledError:
-            pass  # Expected when cancelling
-        except Exception as e:
-            logger.error(f"Error cancelling bot task: {e}")
-    
-    if bot_app:
-        try:
-            await bot_app.updater.stop()
-            await bot_app.stop()
-            await bot_app.shutdown()
-        except Exception as e:
-            logger.error(f"Error stopping bot: {e}")
+    # Shutdown: Stop Telegram Bot thread
+    try:
+        stop_bot_thread()
+        logger.info("Telegram bot thread stopped.")
+    except Exception as e:
+        logger.error(f"Error stopping bot thread: {e}")
 
-app = FastAPI(title="VishwaGuru Backend", lifespan=lifespan)
+app = FastAPI(
+    title="VishwaGuru Backend",
+    description="AI-powered civic issue reporting and resolution platform",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Add centralized exception handlers
+for exception_type, handler in EXCEPTION_HANDLERS.items():
+    app.add_exception_handler(exception_type, handler)
 
 # CORS Configuration - Security Enhanced
-# For separate frontend/backend deployment (e.g., Netlify + Render)
-# FRONTEND_URL environment variable is REQUIRED for security
-# Example: https://your-app.netlify.app
-
 frontend_url = os.environ.get("FRONTEND_URL")
-if not frontend_url:
-    raise ValueError(
-        "FRONTEND_URL environment variable is required for security. "
-        "Set it to your frontend URL (e.g., https://your-app.netlify.app). "
-        "For development, use http://localhost:5173 or similar."
-    )
+is_production = os.environ.get("ENVIRONMENT", "").lower() == "production"
 
-# Validate URL format (basic check)
+if not frontend_url:
+    if is_production:
+        raise ValueError(
+            "FRONTEND_URL environment variable is required for security in production. "
+            "Set it to your frontend URL (e.g., https://your-app.netlify.app)."
+        )
+    else:
+        logger.warning("FRONTEND_URL not set. Defaulting to http://localhost:5173 for development.")
+        frontend_url = "http://localhost:5173"
+
 if not (frontend_url.startswith("http://") or frontend_url.startswith("https://")):
     raise ValueError(
         f"FRONTEND_URL must be a valid HTTP/HTTPS URL. Got: {frontend_url}"
     )
 
-# Build allowed origins list
 allowed_origins = [frontend_url]
 
-# Allow localhost origins for development
 if os.environ.get("ENVIRONMENT", "").lower() != "production":
-    # Add common development origins
     dev_origins = [
-        "http://localhost:3000",  # React default
-        "http://localhost:5173",  # Vite default
+        "http://localhost:3000",
+        "http://localhost:5173",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
-        "http://localhost:8080",  # Alternative dev port
+        "http://localhost:8080",
     ]
     allowed_origins.extend(dev_origins)
 
-# Allow CORS for frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -253,7 +168,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Enable Gzip compression
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
 @app.get("/")

@@ -1,5 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import * as tf from '@tensorflow/tfjs';
+import * as mobilenet from '@tensorflow-models/mobilenet';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -9,6 +11,9 @@ const SmartScanner = ({ onBack }) => {
     const [isDetecting, setIsDetecting] = useState(false);
     const [detection, setDetection] = useState(null);
     const [error, setError] = useState(null);
+    const [model, setModel] = useState(null);
+    const [previousFrame, setPreviousFrame] = useState(null);
+    const lastSentRef = useRef(0);
     const navigate = useNavigate();
 
     // Define functions before useEffect to avoid hoisting issues
@@ -39,11 +44,28 @@ const SmartScanner = ({ onBack }) => {
         }
     };
 
+    const calculateFrameDifference = (currentData, previousData) => {
+        if (!previousData) return 1; // First frame, consider as change
+        let diff = 0;
+        for (let i = 0; i < currentData.length; i += 4) {
+            diff += Math.abs(currentData[i] - previousData[i]) + // R
+                    Math.abs(currentData[i + 1] - previousData[i + 1]) + // G
+                    Math.abs(currentData[i + 2] - previousData[i + 2]); // B
+        }
+        return diff / (currentData.length / 4) / 255; // Average difference normalized
+    };
+
     const detectFrame = async () => {
-        if (!videoRef.current || !canvasRef.current || !isDetecting) return;
+        if (!videoRef.current || !canvasRef.current || !isDetecting || !model) return;
 
         const video = videoRef.current;
         if (video.readyState !== 4) return;
+
+        // Check cooldown
+        const now = Date.now();
+        if (now - lastSentRef.current < 2000) {
+            return;
+        }
 
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
@@ -55,26 +77,51 @@ const SmartScanner = ({ onBack }) => {
 
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        canvas.toBlob(async (blob) => {
-            if (!blob) return;
+        // Get current frame data for difference calculation
+        const currentImageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const currentData = currentImageData.data;
 
-            const formData = new FormData();
-            formData.append('image', blob, 'frame.jpg');
+        // Calculate frame difference
+        const frameDiff = calculateFrameDifference(currentData, previousFrame);
+        setPreviousFrame(currentData.slice()); // Store for next comparison
 
-            try {
-                const response = await fetch(`${API_URL}/api/detect-smart-scan`, {
-                    method: 'POST',
-                    body: formData
-                });
+        // If no significant change, skip processing
+        if (frameDiff < 0.05) { // Threshold for change detection
+            return;
+        }
 
-                if (response.ok) {
-                    const data = await response.json();
-                    setDetection(data);
+        // Run local inference
+        const predictions = await model.classify(canvas);
+        const topPrediction = predictions[0];
+
+        // If frame changed and local model has high confidence, send to backend
+        if (topPrediction.probability > 0.5) {
+            lastSentRef.current = now; // Update timestamp
+            // Proceed to backend detection
+            canvas.toBlob(async (blob) => {
+                if (!blob) return;
+
+                const formData = new FormData();
+                formData.append('image', blob, 'frame.jpg');
+
+                try {
+                    const response = await fetch(`${API_URL}/api/detect-smart-scan`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        setDetection({ label: data.category, score: data.confidence });
+                    }
+                } catch (err) {
+                    console.error("Detection error:", err);
                 }
-            } catch (err) {
-                console.error("Detection error:", err);
-            }
-        }, 'image/jpeg', 0.8);
+            }, 'image/jpeg', 0.8);
+        } else {
+            // Local detection: low confidence, consider safe
+            setDetection({ label: 'Safe', score: topPrediction.probability });
+        }
     };
 
     useEffect(() => {

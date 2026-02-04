@@ -10,6 +10,7 @@ import warnings
 from async_lru import alru_cache
 import logging
 import asyncio
+from backend.ai_service import retry_with_exponential_backoff
 
 # Suppress deprecation warnings from google.generativeai
 warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")

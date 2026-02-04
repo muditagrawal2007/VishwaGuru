@@ -1,12 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { fakeActionPlan } from '../fakeData';
-import { Camera, Image as ImageIcon } from 'lucide-react';
+import { Camera, Image as ImageIcon, CheckCircle2, AlertTriangle, Loader2, Layers } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { saveReportOffline, registerBackgroundSync } from '../offlineQueue';
+import VoiceInput from '../components/VoiceInput';
+import { detectorsApi } from '../api';
 
 // Get API URL from environment variable, fallback to relative URL for local dev
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) => {
+  const { t, i18n } = useTranslation();
   const locationState = useLocation().state || {};
   const [formData, setFormData] = useState({
     description: locationState.description || '',
@@ -20,6 +25,54 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
   const [severity, setSeverity] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [describing, setDescribing] = useState(false);
+  const [urgencyAnalysis, setUrgencyAnalysis] = useState(null);
+  const [analyzingUrgency, setAnalyzingUrgency] = useState(false);
+  const [depthMap, setDepthMap] = useState(null);
+  const [analyzingDepth, setAnalyzingDepth] = useState(false);
+  const [smartCategory, setSmartCategory] = useState(null);
+  const [analyzingSmartScan, setAnalyzingSmartScan] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState({ state: 'idle', message: '' });
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [uploading, setUploading] = useState(false);
+  const [analysisErrors, setAnalysisErrors] = useState({});
+  const [nearbyIssues, setNearbyIssues] = useState([]);
+  const [checkingNearby, setCheckingNearby] = useState(false);
+  const [showNearbyModal, setShowNearbyModal] = useState(false);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const analyzeUrgency = async () => {
+      if (!formData.description || formData.description.length < 5) return;
+      setAnalyzingUrgency(true);
+      try {
+          const response = await fetch(`${API_URL}/api/analyze-urgency`, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ description: formData.description }),
+          });
+          if (response.ok) {
+              const data = await response.json();
+              setUrgencyAnalysis(data);
+          }
+      } catch (e) {
+          console.error("Urgency analysis failed", e);
+      } finally {
+          setAnalyzingUrgency(false);
+      }
+  };
 
   const autoDescribe = async () => {
       if (!formData.image) return;
@@ -50,6 +103,7 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
     if (!file) return;
     setAnalyzing(true);
     setSeverity(null);
+    setAnalysisErrors(prev => ({ ...prev, severity: null }));
 
     const uploadData = new FormData();
     uploadData.append('image', file);
@@ -62,20 +116,151 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
         if (response.ok) {
             const data = await response.json();
             setSeverity(data);
+        } else {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            setAnalysisErrors(prev => ({ ...prev, severity: errorData.detail || 'Analysis failed' }));
         }
     } catch (e) {
         console.error("Severity analysis failed", e);
+        setAnalysisErrors(prev => ({ ...prev, severity: 'Network error - please try again' }));
     } finally {
         setAnalyzing(false);
     }
   };
 
-  const handleImageChange = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-          setFormData({...formData, image: file});
-          analyzeImage(file);
+  const analyzeDepth = async () => {
+      if (!formData.image) return;
+      setAnalyzingDepth(true);
+      setDepthMap(null);
+
+      const uploadData = new FormData();
+      uploadData.append('image', formData.image);
+
+      try {
+          const data = await detectorsApi.depth(uploadData);
+          if (data && data.depth_map) {
+              setDepthMap(data.depth_map);
+          }
+      } catch (e) {
+          console.error("Depth analysis failed", e);
+      } finally {
+          setAnalyzingDepth(false);
       }
+  };
+
+  const mapSmartScanToCategory = (label) => {
+      const map = {
+          'pothole': 'road',
+          'garbage': 'garbage',
+          'flooded street': 'water',
+          'fire accident': 'road',
+          'fallen tree': 'road',
+          'stray animal': 'road',
+          'blocked road': 'road',
+          'broken streetlight': 'streetlight',
+          'illegal parking': 'road',
+          'graffiti vandalism': 'college_infra',
+          'normal street': 'road'
+      };
+      return map[label] || 'road';
+  };
+
+  const analyzeSmartScan = async (file) => {
+      if (!file) return;
+      setAnalyzingSmartScan(true);
+      setSmartCategory(null);
+      setAnalysisErrors(prev => ({ ...prev, smartScan: null }));
+
+      const uploadData = new FormData();
+      uploadData.append('image', file);
+
+      try {
+          const data = await detectorsApi.smartScan(uploadData);
+          if (data && data.category && data.category !== 'unknown') {
+              const mappedCategory = mapSmartScanToCategory(data.category);
+              setSmartCategory({
+                  original: data.category,
+                  mapped: mappedCategory,
+                  confidence: data.confidence
+              });
+          }
+      } catch (e) {
+          console.error("Smart scan failed", e);
+          setAnalysisErrors(prev => ({ ...prev, smartScan: 'Smart scan failed - continuing with manual selection' }));
+      } finally {
+          setAnalyzingSmartScan(false);
+      }
+  };
+
+  const compressImage = (file, maxWidth = 1024, maxHeight = 1024, quality = 0.8) => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+
+      img.onload = () => {
+        // Calculate new dimensions
+        let { width, height } = img;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(resolve, 'image/jpeg', quality);
+      };
+
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setUploading(true);
+      try {
+        // Compress image if it's large
+        let processedFile = file;
+        if (file.size > 1024 * 1024) { // 1MB
+          const compressedBlob = await compressImage(file);
+          processedFile = new File([compressedBlob], file.name, {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+        }
+
+        setFormData({...formData, image: processedFile});
+
+        // Analyze in parallel but with error handling
+        await Promise.allSettled([
+          analyzeImage(processedFile),
+          analyzeSmartScan(processedFile)
+        ]);
+      } catch (error) {
+        console.error('Image processing failed:', error);
+        // Fallback to original file
+        setFormData({...formData, image: file});
+        await Promise.allSettled([
+          analyzeImage(file),
+          analyzeSmartScan(file)
+        ]);
+      } finally {
+        setUploading(false);
+      }
+    }
   };
 
   const getLocation = () => {
@@ -103,14 +288,65 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
     }
   };
 
+  const checkNearbyIssues = async () => {
+    if (!formData.latitude || !formData.longitude) {
+       getLocation(); // Try to get location first
+       return;
+    }
+    setCheckingNearby(true);
+    try {
+        const response = await fetch(`${API_URL}/api/issues/nearby?latitude=${formData.latitude}&longitude=${formData.longitude}&radius=50`);
+        if (response.ok) {
+            const data = await response.json();
+            setNearbyIssues(data);
+            setShowNearbyModal(true);
+        }
+    } catch (e) {
+        console.error("Failed to check nearby issues", e);
+    } finally {
+        setCheckingNearby(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSubmitStatus({ state: 'pending', message: 'Submitting your issue…' });
+
+    const isOnline = navigator.onLine;
+
+    if (!isOnline) {
+      // Save offline
+      try {
+        const reportData = {
+          category: formData.category,
+          description: formData.description,
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+          location: formData.location,
+          imageBlob: formData.image,
+          severity_level: severity?.level,
+          severity_score: severity?.confidence
+        };
+        await saveReportOffline(reportData);
+        registerBackgroundSync();
+        setSubmitStatus({ state: 'success', message: 'Report saved offline. Will sync when online.' });
+        setActionPlan(fakeActionPlan); // Show fallback plan
+        setView('action');
+      } catch (err) {
+        setSubmitStatus({ state: 'error', message: 'Failed to save offline.' });
+        setError('Failed to save report offline.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     const payload = new FormData();
     payload.append('description', formData.description);
     payload.append('category', formData.category);
+    payload.append('language', i18n.language);
     if (formData.latitude) payload.append('latitude', formData.latitude);
     if (formData.longitude) payload.append('longitude', formData.longitude);
     if (formData.location) payload.append('location', formData.location);
@@ -132,19 +368,28 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
       if (!response.ok) throw new Error('Failed to submit issue');
 
       const data = await response.json();
+
+      if (data.deduplication_info && data.deduplication_info.has_nearby_issues && !data.id) {
+        setSubmitStatus({ state: 'success', message: 'Report linked to existing issue!' });
+        alert("We found a similar issue nearby reported recently. Your report has been linked to it to increase its priority!");
+        setView('home');
+        return;
+      }
+
       if (data.action_plan) {
         setActionPlan(data.action_plan);
       } else {
         setActionPlan({ id: data.id, status: 'generating' });
       }
+      setSubmitStatus({ state: 'success', message: 'Issue submitted. Preparing your action plan…' });
       setView('action');
     } catch (err) {
       console.error("Submission failed, using fake action plan", err);
       // Fallback to fake action plan on failure
       setActionPlan(fakeActionPlan);
       setView('action');
-      // We don't set error here so the user sees the success flow (even if fake)
-      // setError(err.message);
+      setSubmitStatus({ state: 'error', message: 'Submission failed. We generated a fallback plan—please retry when convenient.' });
+      setError('Unable to submit right now. Your plan is a fallback; please retry later.');
     } finally {
       setLoading(false);
     }
@@ -168,18 +413,84 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
               <option value="college_infra">College Infrastructure</option>
               <option value="women_safety">Women Safety</option>
             </select>
+            {analyzingSmartScan && (
+                <div className="text-xs text-blue-600 mt-1 animate-pulse flex items-center gap-1">
+                    <Loader2 size={12} className="animate-spin"/>
+                    AI is analyzing image for category...
+                </div>
+            )}
+            {analysisErrors.smartScan && (
+                <div className="text-xs text-orange-600 mt-1 flex items-center gap-1">
+                    <AlertTriangle size={12} />
+                    {analysisErrors.smartScan}
+                </div>
+            )}
+            {smartCategory && (
+                <div
+                    onClick={() => setFormData({...formData, category: smartCategory.mapped})}
+                    className="mt-2 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100 p-2 rounded-lg cursor-pointer hover:bg-purple-100 transition flex items-center justify-between group"
+                >
+                    <div className="flex items-center gap-2">
+                        <span className="text-lg">✨</span>
+                        <div>
+                            <p className="text-xs text-purple-800 font-bold uppercase tracking-wide">AI Suggestion</p>
+                            <p className="text-sm font-medium text-purple-900 capitalize">{smartCategory.original}</p>
+                        </div>
+                    </div>
+                    <div className="bg-white text-purple-600 px-3 py-1 rounded text-xs font-bold shadow-sm group-hover:shadow transition">
+                        Apply
+                    </div>
+                </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Language</label>
+            <select
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
+              value={i18n.language}
+              onChange={(e) => i18n.changeLanguage(e.target.value)}
+            >
+              <option value="en">English</option>
+              <option value="hi">हिंदी (Hindi)</option>
+              <option value="mr">मराठी (Marathi)</option>
+            </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700">Description</label>
-            <textarea
-              required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
-              rows="3"
-              value={formData.description}
-              onChange={(e) => setFormData({...formData, description: e.target.value})}
-              placeholder="Describe the issue..."
-            />
+            <div className="relative">
+              <textarea
+                required
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border pr-12"
+                rows="3"
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                onBlur={analyzeUrgency}
+                placeholder="Describe the issue..."
+              />
+              <div className="absolute top-2 right-2">
+                <VoiceInput
+                  onTranscript={(transcript) => setFormData(prev => ({...prev, description: prev.description + ' ' + transcript}))}
+                  language={i18n.language}
+                />
+              </div>
+            </div>
+            {analyzingUrgency && (
+               <div className="mt-1 text-xs text-blue-600 animate-pulse">
+                   Checking urgency...
+               </div>
+            )}
+            {urgencyAnalysis && !analyzingUrgency && (
+                <div className={`mt-2 p-2 rounded text-sm flex items-center justify-between ${
+                    urgencyAnalysis.urgency === 'High' ? 'bg-red-50 text-red-800 border border-red-200' :
+                    urgencyAnalysis.urgency === 'Medium' ? 'bg-orange-50 text-orange-800 border border-orange-200' :
+                    'bg-green-50 text-green-800 border border-green-200'
+                }`}>
+                    <span className="font-semibold">Urgency: {urgencyAnalysis.urgency}</span>
+                    <span className="text-xs opacity-75">Sentiment: {urgencyAnalysis.sentiment}</span>
+                </div>
+            )}
             {formData.image && (
                 <button
                     type="button"
@@ -211,6 +522,17 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
                     {gettingLocation ? '...' : '📍'}
                 </button>
              </div>
+             {formData.latitude && (
+                 <button
+                    type="button"
+                    onClick={checkNearbyIssues}
+                    disabled={checkingNearby}
+                    className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+                 >
+                    {checkingNearby ? <Loader2 size={12} className="animate-spin"/> : <Layers size={12} />}
+                    Check for existing reports nearby
+                 </button>
+             )}
           </div>
 
           <div>
@@ -241,8 +563,44 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
             </div>
 
             {formData.image && (
-                <div className="text-sm text-green-600 mb-2 text-center">
-                    Selected: {formData.image.name}
+                <div className="text-sm text-green-600 mb-2 text-center flex items-center justify-center gap-2">
+                    {uploading ? (
+                        <>
+                            <Loader2 size={16} className="animate-spin" />
+                            Processing image...
+                        </>
+                    ) : (
+                        <>Selected: {formData.image.name}</>
+                    )}
+                </div>
+            )}
+
+            {formData.image && !depthMap && (
+                <button
+                    type="button"
+                    onClick={analyzeDepth}
+                    disabled={analyzingDepth}
+                    className="w-full text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-lg hover:bg-indigo-100 transition flex items-center justify-center gap-2 font-medium mb-2"
+                >
+                    {analyzingDepth ? (
+                        <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                        <Layers size={14} />
+                    )}
+                    {analyzingDepth ? 'Generating 3D Map...' : 'Analyze Severity (3D)'}
+                </button>
+            )}
+
+            {depthMap && (
+                <div className="mb-2 border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 px-2 py-1 text-xs text-gray-500 font-medium border-b border-gray-200">
+                        3D Depth Analysis Map
+                    </div>
+                    <img
+                        src={`data:image/jpeg;base64,${depthMap}`}
+                        alt="Depth Map"
+                        className="w-full h-auto object-cover"
+                    />
                 </div>
             )}
 
@@ -250,6 +608,13 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
                 <div className="flex items-center justify-center gap-2 text-blue-600 bg-blue-50 p-3 rounded-lg border border-blue-100 animate-pulse">
                     <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                     <span className="text-sm font-medium">Analyzing severity...</span>
+                </div>
+            )}
+
+            {analysisErrors.severity && (
+                <div className="flex items-center justify-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">
+                    <AlertTriangle size={16} />
+                    <span className="text-sm font-medium">Severity analysis: {analysisErrors.severity}</span>
                 </div>
             )}
 
@@ -281,10 +646,74 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
             disabled={loading}
             className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 font-bold shadow-md"
           >
-            {loading ? 'Processing...' : 'Generate Action Plan'}
+            {loading ? 'Processing…' : isOnline ? 'Generate Action Plan' : 'Save Offline'}
           </button>
+
+          <div className={`mt-2 text-center text-sm ${isOnline ? 'text-green-600' : 'text-orange-600'}`}>
+            {isOnline ? '🟢 Online - Report will be submitted immediately' : '🟠 Offline - Report will be saved and synced later'}
+          </div>
+
+          {submitStatus.state !== 'idle' && (
+            <div
+              className={`mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium shadow-sm ${
+                submitStatus.state === 'success'
+                  ? 'bg-green-50 border-green-200 text-green-800'
+                  : submitStatus.state === 'pending'
+                  ? 'bg-blue-50 border-blue-200 text-blue-800'
+                  : 'bg-red-50 border-red-200 text-red-800'
+              }`}
+            >
+              {submitStatus.state === 'success' && <CheckCircle2 size={18} />}
+              {submitStatus.state === 'pending' && <Loader2 size={18} className="animate-spin" />}
+              {submitStatus.state === 'error' && <AlertTriangle size={18} />}
+              <span>{submitStatus.message}</span>
+            </div>
+          )}
           <button type="button" onClick={() => setView('home')} className="mt-2 text-gray-500 hover:text-gray-700 underline text-center w-full block text-sm">Cancel</button>
        </form>
+
+      {showNearbyModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-xl">
+              <h3 className="font-bold text-gray-800">Nearby Issues ({nearbyIssues.length})</h3>
+              <button onClick={() => setShowNearbyModal(false)} className="text-gray-500 hover:text-gray-700">
+                <CheckCircle2 size={24} className="rotate-45" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-4 space-y-3 custom-scrollbar flex-1">
+              {nearbyIssues.length === 0 ? (
+                <p className="text-center text-gray-500 py-4">No similar issues found nearby. You are good to report!</p>
+              ) : (
+                nearbyIssues.map(issue => (
+                  <div key={issue.id} className="border rounded-lg p-3 hover:bg-gray-50">
+                    <div className="flex justify-between items-start">
+                      <span className="text-xs font-bold uppercase bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">{issue.category}</span>
+                      <span className="text-xs text-gray-500">{Math.round(issue.distance_meters)}m away</span>
+                    </div>
+                    <p className="text-sm font-medium mt-1">{issue.description}</p>
+                    <div className="flex justify-between items-center mt-2">
+                        <span className="text-xs text-gray-400">{new Date(issue.created_at).toLocaleDateString()}</span>
+                        <div className="flex gap-2">
+                            <span className="text-xs font-bold text-blue-600">{issue.upvotes} Upvotes</span>
+                            <span className={`text-xs font-bold px-1.5 rounded ${issue.status === 'open' ? 'text-green-600 bg-green-50' : 'text-gray-600 bg-gray-50'}`}>{issue.status}</span>
+                        </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="p-4 border-t bg-gray-50 rounded-b-xl">
+               <button
+                 onClick={() => setShowNearbyModal(false)}
+                 className="w-full bg-blue-600 text-white py-2 rounded-lg font-bold"
+               >
+                 {nearbyIssues.length > 0 ? "I'll Report Anyway (New Issue)" : "Continue"}
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

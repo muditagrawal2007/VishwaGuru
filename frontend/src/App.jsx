@@ -1,15 +1,20 @@
-import React, { useState, useEffect, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, Suspense, useCallback, useMemo } from 'react';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import ChatWidget from './components/ChatWidget';
 import { fakeRecentIssues, fakeResponsibilityMap } from './fakeData';
 import { issuesApi, miscApi } from './api';
 
 // Lazy Load Views
+const Landing = React.lazy(() => import('./views/Landing'));
 const Home = React.lazy(() => import('./views/Home'));
 const MapView = React.lazy(() => import('./views/MapView'));
 const ReportForm = React.lazy(() => import('./views/ReportForm'));
 const ActionView = React.lazy(() => import('./views/ActionView'));
 const MaharashtraRepView = React.lazy(() => import('./views/MaharashtraRepView'));
+const VerifyView = React.lazy(() => import('./views/VerifyView'));
+const StatsView = React.lazy(() => import('./views/StatsView'));
+const LeaderboardView = React.lazy(() => import('./views/LeaderboardView'));
+const GrievanceView = React.lazy(() => import('./views/GrievanceView'));
 const NotFound = React.lazy(() => import('./views/NotFound'));
 
 // Lazy Load Detectors
@@ -31,12 +36,16 @@ const GrievanceAnalysis = React.lazy(() => import('./views/GrievanceAnalysis'));
 // Create a wrapper component to handle state management
 function AppContent() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [responsibilityMap, setResponsibilityMap] = useState(null);
   const [actionPlan, setActionPlan] = useState(null);
   const [maharashtraRepInfo, setMaharashtraRepInfo] = useState(null);
   const [recentIssues, setRecentIssues] = useState([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
 
   // Safe navigation helper
   const navigateToView = (view) => {
@@ -44,76 +53,122 @@ function AppContent() {
     if (validViews.includes(view)) {
       navigate(view === 'home' ? '/' : `/${view}`);
     }
-  };
+  }, [error, success]);
 
-  // Fetch recent issues on mount
-  const fetchRecentIssues = async () => {
-    try {
-      const data = await issuesApi.getRecent();
-      setRecentIssues(data);
-    } catch (e) {
-      console.error("Failed to fetch recent issues, using fake data", e);
-      setRecentIssues(fakeRecentIssues);
+  // Safe navigation helper with validation
+  const navigateToView = useCallback((view) => {
+    if (VALID_VIEWS.includes(view.split('/')[0])) {
+      navigate(`/${view}`);
+    } else {
+      console.warn(`Attempted to navigate to invalid view: ${view}`);
+      navigate('/home');
     }
-  };
+  }, [navigate]);
 
-  useEffect(() => {
-    fetchRecentIssues();
+  // Fetch recent issues
+  const fetchRecentIssues = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await issuesApi.getRecent(10, 0);
+      setRecentIssues(data);
+      setHasMore(data.length === 10);
+      setSuccess('Recent issues updated successfully');
+    } catch (error) {
+      console.error("Failed to fetch recent issues, using fake data", error);
+      setRecentIssues(fakeRecentIssues);
+      setError("Using sample data - unable to connect to server");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const handleUpvote = async (id) => {
+  // Load more issues
+  const loadMoreIssues = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
     try {
-        await issuesApi.vote(id);
-        // Update local state to reflect change immediately (optimistic UI or re-fetch)
-        setRecentIssues(prev => prev.map(issue =>
-            issue.id === id ? { ...issue, upvotes: (issue.upvotes || 0) + 1 } : issue
-        ));
-    } catch (e) {
-        console.error("Failed to upvote", e);
+      const offset = recentIssues.length;
+      const data = await issuesApi.getRecent(10, offset);
+      if (data.length < 10) setHasMore(false);
+      setRecentIssues(prev => [...prev, ...data]);
+    } catch (error) {
+      console.error("Failed to load more issues", error);
+      setError("Failed to load more issues");
+    } finally {
+      setLoadingMore(false);
     }
-  };
+  }, [recentIssues.length, loadingMore, hasMore]);
+
+  // Handle upvote with optimistic update
+  const handleUpvote = useCallback(async (id) => {
+    const originalUpvotes = [...recentIssues];
+    try {
+      setRecentIssues(prev => prev.map(issue =>
+        issue.id === id ? { ...issue, upvotes: (issue.upvotes || 0) + 1 } : issue
+      ));
+      await issuesApi.vote(id);
+      setSuccess('Upvote recorded successfully!');
+    } catch (error) {
+      console.error("Failed to upvote", error);
+      setRecentIssues(originalUpvotes);
+      setError("Failed to record upvote. Please try again.");
+    }
+  }, [recentIssues]);
 
   // Responsibility Map Logic
-  const fetchResponsibilityMap = async () => {
+  const fetchResponsibilityMap = useCallback(async () => {
     setLoading(true);
     setError(null);
+
     try {
       const data = await miscApi.getResponsibilityMap();
       setResponsibilityMap(data);
+      setSuccess('Responsibility map loaded successfully');
       navigate('/map');
-    } catch (err) {
-      console.error("Failed to fetch responsibility map, using fake data", err);
+    } catch (error) {
+      console.error("Failed to fetch responsibility map", error);
+      setError("Using sample data - unable to load responsibility map");
       setResponsibilityMap(fakeResponsibilityMap);
       navigate('/map');
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
 
+  // Initialize on mount
+  useEffect(() => {
+    fetchRecentIssues();
+  }, [fetchRecentIssues]);
+
+  // Check if we're on the landing page
+  const isLandingPage = location.pathname === '/';
+
+  // If on landing page, render it without the main layout
+  if (isLandingPage) {
+    return (
+      <Suspense fallback={
+        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+          <LoadingSpinner size="xl" variant="primary" />
+        </div>
+      }>
+        <Landing />
+      </Suspense>
+    );
+  }
+
+  // Otherwise render the main app layout
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4">
-      <ChatWidget />
-      <div className="bg-white shadow-xl rounded-2xl p-6 max-w-lg w-full mt-6 mb-24 border border-gray-100">
-        <header className="text-center mb-6">
-          <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-blue-600">
-            VishwaGuru
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Empowering Citizens, Solving Problems.
-          </p>
-        </header>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-100 text-gray-900 font-sans overflow-hidden">
+      {/* Animated background elements */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-orange-300/10 rounded-full blur-3xl animate-pulse-slow"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-300/10 rounded-full blur-3xl animate-pulse-slow animation-delay-1000"></div>
+      </div>
 
-        {loading && (
-          <div className="flex justify-center my-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        )}
+      <FloatingButtonsManager setView={navigateToView} />
 
-        {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center my-4">
-            {error}
-          </div>
-        )}
+      <div className="relative z-10">
+        <AppHeader />
 
         <Suspense fallback={
           <div className="flex justify-center my-8">
@@ -222,6 +277,7 @@ function AppContent() {
   );
 }
 
+// Main App Component
 function App() {
   return (
     <Router>

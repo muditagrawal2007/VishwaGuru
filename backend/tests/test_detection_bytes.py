@@ -1,5 +1,6 @@
 
 import pytest
+import warnings
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, AsyncMock, patch
 import io
@@ -8,6 +9,10 @@ from PIL import Image
 import httpx
 import sys
 import os
+
+# Suppress warnings for clean test output
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 from pathlib import Path
 
 # Ensure repository root is importable so "backend" package resolves in tests
@@ -29,7 +34,7 @@ sys.modules['telegram'] = mock_telegram
 sys.modules['telegram.ext'] = mock_telegram.ext
 
 # Mock dependencies before importing app
-with patch("backend.ai_factory.create_all_ai_services") as mock_create_ai:
+with patch("backend.main.create_all_ai_services") as mock_create_ai:
     mock_action = AsyncMock()
     mock_chat = AsyncMock()
     mock_summary = AsyncMock()
@@ -85,9 +90,9 @@ async def test_detect_vandalism_with_bytes(client):
     img_bytes = img_byte_arr.getvalue()
 
     # Send request
-    with patch('backend.main.validate_uploaded_file'), \
-         patch('backend.main.validate_image_for_processing'), \
-         patch('backend.main.detect_vandalism_local', AsyncMock(return_value=[{"label": "graffiti", "score": 0.95}])):
+    with patch('backend.utils.validate_uploaded_file'), \
+         patch('backend.pothole_detection.validate_image_for_processing'), \
+         patch('backend.routers.detection.detect_vandalism_unified', AsyncMock(return_value=[{"label": "graffiti", "score": 0.95}])):
         response = client.post(
             "/api/detect-vandalism",
             files={"image": ("test.jpg", img_bytes, "image/jpeg")}
@@ -123,9 +128,9 @@ async def test_detect_infrastructure_with_bytes(client):
     img.save(img_byte_arr, format='JPEG')
     img_bytes = img_byte_arr.getvalue()
 
-    with patch('backend.main.validate_uploaded_file'), \
-         patch('backend.main.validate_image_for_processing'), \
-         patch('backend.main.detect_infrastructure_local', AsyncMock(return_value=[{"label": "fallen tree", "score": 0.8}])):
+    with patch('backend.utils.validate_uploaded_file'), \
+         patch('backend.pothole_detection.validate_image_for_processing'), \
+         patch('backend.routers.detection.detect_infrastructure_unified', AsyncMock(return_value=[{"label": "fallen tree", "score": 0.8}])):
         response = client.post(
             "/api/detect-infrastructure",
             files={"image": ("test.jpg", img_bytes, "image/jpeg")}

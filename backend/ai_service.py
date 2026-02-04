@@ -1,23 +1,21 @@
 import json
 import os
-import google.generativeai as genai
-from typing import Optional, Callable, Any
 import warnings
+from typing import Optional, Callable, Any
 from functools import lru_cache
-from typing import Optional
 import logging
-
-import google.generativeai as genai
-from async_lru import alru_cache
 import asyncio
-import logging
-
-# Configure logger
-logger = logging.getLogger(__name__)
+from async_lru import alru_cache
 
 # Suppress deprecation warnings from google.generativeai
-warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
+# We use a context manager to ensure we only suppress warnings for this specific import
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    import google.generativeai as genai
 
+from backend.exceptions import AIServiceException
+
+# Configure logger
 logger = logging.getLogger(__name__)
 
 # Configure Gemini
@@ -69,7 +67,11 @@ async def retry_with_exponential_backoff(
             if attempt == max_retries:
                 # Last attempt failed, re-raise the exception
                 logger.error(f"Function {func.__name__} failed after {max_retries + 1} attempts: {e}")
-                raise e
+                raise AIServiceException(
+                    f"AI service operation failed after {max_retries + 1} attempts",
+                    service="Gemini",
+                    details={"function": func.__name__, "error": str(e)}
+                ) from e
 
             # Calculate delay with exponential backoff
             delay = min(base_delay * (backoff_factor ** attempt), max_delay)
@@ -106,7 +108,7 @@ def build_x_post(issue_description: str, category: str) -> str:
     return f"{base_message} #CivicIssue #VishwaGuru"
 
 
-async def generate_action_plan(issue_description: str, category: str, image_path: Optional[str] = None) -> dict:
+async def generate_action_plan(issue_description: str, category: str, language: str = 'en', image_path: Optional[str] = None) -> dict:
     """
     Generates an action plan (WhatsApp message, Email draft) using Gemini with retry logic.
     """
@@ -130,7 +132,7 @@ async def generate_action_plan(issue_description: str, category: str, image_path
         Category: {category}
         Description: {issue_description}
 
-        Please generate:
+        Please generate the following messages in {language} language:
         1. A concise WhatsApp message (max 200 chars) that can be sent to authorities.
         2. A formal but firm email subject.
         3. A formal email body (max 150 words) addressed to the relevant authority (e.g., Municipal Commissioner, Police, etc. based on category).
@@ -164,9 +166,16 @@ async def generate_action_plan(issue_description: str, category: str, image_path
 
     try:
         return await retry_with_exponential_backoff(_generate_with_gemini, max_retries=3)
+    except AIServiceException:
+        # Already properly wrapped, re-raise
+        raise
     except Exception as e:
         logger.error(f"Gemini action plan generation failed after retries: {e}")
-        return fallback_response
+        raise AIServiceException(
+            "Failed to generate action plan",
+            service="Gemini",
+            details={"error": str(e)}
+        ) from e
 
 @alru_cache(maxsize=100)
 async def chat_with_civic_assistant(query: str) -> str:
@@ -191,6 +200,13 @@ async def chat_with_civic_assistant(query: str) -> str:
 
     try:
         return await retry_with_exponential_backoff(_chat_with_gemini, max_retries=2)
+    except AIServiceException:
+        # Already properly wrapped, re-raise
+        raise
     except Exception as e:
         logger.error(f"Gemini chat failed after retries: {e}")
-        return "I encountered an error processing your request. Please try again later."
+        raise AIServiceException(
+            "Failed to process chat request",
+            service="Gemini",
+            details={"error": str(e)}
+        ) from e
