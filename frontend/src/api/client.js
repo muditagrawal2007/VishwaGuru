@@ -1,8 +1,13 @@
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 export const apiClient = {
-  get: async (endpoint) => {
-    const response = await fetch(`${API_URL}${endpoint}`);
+  get: async (endpoint, options = {}) => {
+    let url = `${API_URL}${endpoint}`;
+    if (options.params) {
+      const queryString = new URLSearchParams(options.params).toString();
+      url += `?${queryString}`;
+    }
+    const response = await fetch(url);
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
     }

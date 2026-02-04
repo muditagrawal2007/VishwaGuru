@@ -398,6 +398,8 @@ function AppContent() {
   const [actionPlan, setActionPlan] = useState(null);
   const [maharashtraRepInfo, setMaharashtraRepInfo] = useState(null);
   const [recentIssues, setRecentIssues] = useState([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -427,8 +429,9 @@ function AppContent() {
   const fetchRecentIssues = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await issuesApi.getRecent();
+      const data = await issuesApi.getRecent(10, 0);
       setRecentIssues(data);
+      setHasMore(data.length === 10);
       setSuccess('Recent issues updated successfully');
     } catch (error) {
       console.error("Failed to fetch recent issues, using fake data", error);
@@ -438,6 +441,23 @@ function AppContent() {
       setLoading(false);
     }
   }, []);
+
+  // Load more issues
+  const loadMoreIssues = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const offset = recentIssues.length;
+      const data = await issuesApi.getRecent(10, offset);
+      if (data.length < 10) setHasMore(false);
+      setRecentIssues(prev => [...prev, ...data]);
+    } catch (error) {
+      console.error("Failed to load more issues", error);
+      setError("Failed to load more issues");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [recentIssues.length, loadingMore, hasMore]);
 
   // Handle upvote with optimistic update
   const handleUpvote = useCallback(async (id) => {
@@ -561,6 +581,9 @@ function AppContent() {
                         fetchResponsibilityMap={fetchResponsibilityMap}
                         recentIssues={recentIssues}
                         handleUpvote={handleUpvote}
+                        loadMoreIssues={loadMoreIssues}
+                        hasMore={hasMore}
+                        loadingMore={loadingMore}
                       />
                     } />
 

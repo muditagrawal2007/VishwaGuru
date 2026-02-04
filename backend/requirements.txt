@@ -23,3 +23,4 @@ a2wsgi
 # Spatial deduplication dependencies
 scikit-learn
 numpy
+pytest

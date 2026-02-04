@@ -24,7 +24,7 @@ async def process_action_plan_background(issue_id: int, description: str, catego
             db.commit()
 
             # Invalidate cache to ensure users get the updated action plan
-            recent_issues_cache.invalidate("recent_issues")
+            recent_issues_cache.clear()
     except Exception as e:
         logger.error(f"Background action plan generation failed for issue {issue_id}: {e}", exc_info=True)
     finally:
