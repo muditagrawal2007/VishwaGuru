@@ -18,7 +18,7 @@ def test_cache_invalidation_behavior():
     """
     # Create a mock for the cache methods
     # We patch the object methods on the actual instance
-    with patch.object(recent_issues_cache, 'invalidate') as mock_invalidate, \
+    with patch.object(recent_issues_cache, 'clear') as mock_clear, \
          patch.object(recent_issues_cache, 'set') as mock_set, \
          patch.object(recent_issues_cache, 'get') as mock_get:
 
@@ -29,7 +29,10 @@ def test_cache_invalidation_behavior():
         # We need to send a multipart request
         # Patch run_in_threadpool in the router where create_issue lives
         with patch('backend.routers.issues.run_in_threadpool') as mock_threadpool, \
-             patch('backend.routers.issues.validate_uploaded_file') as mock_validate: # Patch validation
+             patch('backend.routers.issues.process_uploaded_image', new_callable=AsyncMock) as mock_process: # Patch validation
+
+             import io
+             mock_process.return_value = io.BytesIO(b"processed")
 
              # Mock the DB save to return a dummy issue with an ID
              mock_saved_issue = MagicMock()
@@ -74,23 +77,13 @@ def test_cache_invalidation_behavior():
 
         assert response.status_code == 201
 
-        # NEW BEHAVIOR CHECK (After Optimization):
+        # NEW BEHAVIOR CHECK (After Pagination Update):
+        # We now clear cache instead of optimistic update
 
-        # invalidate should NOT be called because we provided a mock cache hit
-        assert not mock_invalidate.called, "Cache should not be invalidated when it can be updated"
+        assert mock_clear.called, "Cache should be cleared"
+        assert not mock_set.called, "Cache.set should NOT be called (optimistic update removed)"
 
-        # set should be called with the new list
-        assert mock_set.called, "Cache.set should be called"
-
-        # Verify the content of set call
-        args, _ = mock_set.call_args
-        new_cache_data = args[0]
-
-        assert len(new_cache_data) == 2, "Cache should have 2 items (1 old + 1 new)"
-        assert new_cache_data[0]['id'] == 123, "First item should be the new issue"
-        assert new_cache_data[1]['id'] == 999, "Second item should be the old issue"
-
-        print("\n[Success] Cache was optimized: Updated directly without invalidation.")
+        print("\n[Success] Cache behavior verified: Cleared cache for pagination consistency.")
 
 if __name__ == "__main__":
     # verification via running with pytest

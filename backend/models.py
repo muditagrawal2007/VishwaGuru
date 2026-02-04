@@ -76,7 +76,7 @@ class Grievance(Base):
     longitude = Column(Float, nullable=True, index=True)
     address = Column(String, nullable=True)
     current_jurisdiction_id = Column(Integer, ForeignKey("jurisdictions.id"), nullable=False)
-    assigned_authority = Column(String, nullable=False)
+    assigned_authority = Column(String, nullable=False, index=True)
     sla_deadline = Column(DateTime, nullable=False)
     status = Column(Enum(GrievanceStatus), default=GrievanceStatus.OPEN, index=True)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), index=True)

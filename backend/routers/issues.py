@@ -19,6 +19,7 @@ from backend.schemas import (
 )
 from backend.utils import (
     check_upload_limits, validate_uploaded_file, save_file_blocking, save_issue_db,
+    process_uploaded_image, save_processed_image,
     UPLOAD_LIMIT_PER_USER, UPLOAD_LIMIT_PER_IP
 )
 from backend.tasks import (
@@ -60,17 +61,18 @@ async def create_issue(
         check_upload_limits(identifier, limit)
 
     try:
-        # Validate uploaded image if provided
-        if image:
-            await validate_uploaded_file(image)
-
-        # Save image if provided
+        # Save image if provided (optimized single pass)
         if image:
             upload_dir = "data/uploads"
             os.makedirs(upload_dir, exist_ok=True)
             filename = f"{uuid.uuid4()}_{image.filename}"
             image_path = os.path.join(upload_dir, filename)
-            await run_in_threadpool(save_file_blocking, image.file, image_path)
+
+            # Process image (validate, resize, strip EXIF)
+            processed_image = await process_uploaded_image(image)
+
+            # Save processed image to disk
+            await run_in_threadpool(save_processed_image, processed_image, image_path)
     except HTTPException:
         # Re-raise HTTP exceptions (from validation)
         raise
@@ -182,38 +184,11 @@ async def create_issue(
         # Create grievance for escalation management
         background_tasks.add_task(create_grievance_from_issue_background, new_issue.id)
 
-        # Optimistic Cache Update with thread-safe operations
+        # Invalidate cache so new issue appears
         try:
-            current_cache = recent_issues_cache.get("recent_issues")
-            if current_cache:
-                # Create a dict representation of the new issue
-                # Using IssueSummaryResponse to match the list view optimization
-                new_issue_dict = IssueSummaryResponse(
-                    id=new_issue.id,
-                    category=new_issue.category,
-                    description=new_issue.description[:100] + "..." if len(new_issue.description) > 100 else new_issue.description,
-                    created_at=new_issue.created_at,
-                    image_path=new_issue.image_path,
-                    status=new_issue.status,
-                    upvotes=new_issue.upvotes if new_issue.upvotes is not None else 0,
-                    location=new_issue.location,
-                    latitude=new_issue.latitude,
-                    longitude=new_issue.longitude
-                    # action_plan excluded
-                ).model_dump(mode='json')
-
-                # Prepend new issue to the list (atomic operation)
-                current_cache.insert(0, new_issue_dict)
-
-                # Keep only last 10 entries
-                if len(current_cache) > 10:
-                    current_cache.pop()
-
-                # Atomic cache update
-                recent_issues_cache.set(current_cache, "recent_issues")
+            recent_issues_cache.clear()
         except Exception as e:
-            logger.error(f"Error updating cache optimistically: {e}")
-            # Failure to update cache is not critical, don't fail the request
+            logger.error(f"Error clearing cache: {e}")
 
     # Prepare deduplication info if not already set
     if deduplication_info is None:
@@ -390,18 +365,16 @@ async def verify_issue_endpoint(
         issue.upvotes = Issue.upvotes + 2
 
         # If issue has enough verifications, consider upgrading status
-        # Note: We can't check issue.upvotes value immediately if it's an expression
-        # We need to refresh first, but we want to do logic based on new value.
-        # This is tricky with atomic updates.
-        # For now, let's commit and refresh to get value, then update status if needed.
-
-        await run_in_threadpool(db.commit)
+        # Use flush to apply increment within transaction, then refresh to check value
+        await run_in_threadpool(db.flush)
         await run_in_threadpool(db.refresh, issue)
 
         if issue.upvotes >= 5 and issue.status == "open":
             issue.status = "verified"
             logger.info(f"Issue {issue_id} automatically verified due to {issue.upvotes} upvotes")
-            await run_in_threadpool(db.commit) # Commit status change
+
+        # Commit all changes (upvote and potential status change)
+        await run_in_threadpool(db.commit)
 
         return VoteResponse(
             id=issue.id,
@@ -505,13 +478,18 @@ def subscribe_push_notifications(
     )
 
 @router.get("/api/issues/recent", response_model=List[IssueSummaryResponse])
-def get_recent_issues(db: Session = Depends(get_db)):
-    cached_data = recent_issues_cache.get("recent_issues")
+def get_recent_issues(
+    limit: int = Query(10, ge=1, le=50, description="Number of issues to return"),
+    offset: int = Query(0, ge=0, description="Number of issues to skip"),
+    db: Session = Depends(get_db)
+):
+    cache_key = f"recent_issues_{limit}_{offset}"
+    cached_data = recent_issues_cache.get(cache_key)
     if cached_data:
         return JSONResponse(content=cached_data)
 
-    # Fetch last 10 issues, deferring action_plan for performance
-    issues = db.query(Issue).options(defer(Issue.action_plan)).order_by(Issue.created_at.desc()).limit(10).all()
+    # Fetch issues with pagination
+    issues = db.query(Issue).options(defer(Issue.action_plan)).order_by(Issue.created_at.desc()).offset(offset).limit(limit).all()
 
     # Convert to Pydantic models for validation and serialization
     data = []
@@ -531,5 +509,5 @@ def get_recent_issues(db: Session = Depends(get_db)):
         ).model_dump(mode='json'))
 
     # Thread-safe cache update
-    recent_issues_cache.set(data, "recent_issues")
+    recent_issues_cache.set(data, cache_key)
     return data
