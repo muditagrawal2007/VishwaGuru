@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.concurrency import run_in_threadpool
 from contextlib import asynccontextmanager
 import os
 import httpx
 import logging
+import asyncio
 
 from backend.database import Base, engine
 from backend.ai_factory import create_all_ai_services
@@ -24,23 +26,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Create tables if they don't exist
-Base.metadata.create_all(bind=engine)
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup: Migrate DB
-    migrate_db()
-
-    # Startup: Initialize Shared HTTP Client for external APIs (Connection Pooling)
-    app.state.http_client = httpx.AsyncClient()
-    # Set global shared client in dependencies for cached functions
-    backend.dependencies.SHARED_HTTP_CLIENT = app.state.http_client
-    logger.info("Shared HTTP Client initialized.")
-
-    # Startup: Initialize AI services
+async def background_initialization(app: FastAPI):
+    """Perform non-critical startup tasks in background to speed up app availability"""
     try:
-        action_plan_service, chat_service, mla_summary_service = create_all_ai_services()
+        # 1. AI Services initialization
+        # These can take a few seconds due to imports and configuration
+        action_plan_service, chat_service, mla_summary_service = await run_in_threadpool(create_all_ai_services)
 
         initialize_ai_services(
             action_plan_service=action_plan_service,
@@ -48,34 +39,45 @@ async def lifespan(app: FastAPI):
             mla_summary_service=mla_summary_service
         )
         logger.info("AI services initialized successfully.")
-    except Exception as e:
-        logger.error(f"Error initializing AI services: {e}", exc_info=True)
-        raise
 
-    # Startup: Initialize Grievance Service
+        # 2. Static data pre-loading (loads large JSONs into memory)
+        await run_in_threadpool(load_maharashtra_pincode_data)
+        await run_in_threadpool(load_maharashtra_mla_data)
+        logger.info("Maharashtra data pre-loaded successfully.")
+
+        # 3. Start Telegram Bot in separate thread
+        await run_in_threadpool(start_bot_thread)
+        logger.info("Telegram bot started in separate thread.")
+    except Exception as e:
+        logger.error(f"Error during background initialization: {e}", exc_info=True)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize Shared HTTP Client for external APIs (Connection Pooling)
+    app.state.http_client = httpx.AsyncClient()
+    # Set global shared client in dependencies for cached functions
+    backend.dependencies.SHARED_HTTP_CLIENT = app.state.http_client
+    logger.info("Shared HTTP Client initialized.")
+
+    # Startup: Database setup (Blocking but necessary for app consistency)
+    try:
+        await run_in_threadpool(Base.metadata.create_all, bind=engine)
+        await run_in_threadpool(migrate_db)
+        logger.info("Database initialized successfully.")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}", exc_info=True)
+        # We continue to allow health checks even if DB has issues (for debugging)
+
+    # Startup: Initialize Grievance Service (needed for escalation engine)
     try:
         grievance_service = GrievanceService()
         app.state.grievance_service = grievance_service
         logger.info("Grievance service initialized successfully.")
     except Exception as e:
         logger.error(f"Error initializing grievance service: {e}", exc_info=True)
-        raise
 
-    # Startup: Load static data to avoid first-request latency
-    try:
-        # These functions use lru_cache, so calling them once loads the data into memory
-        load_maharashtra_pincode_data()
-        load_maharashtra_mla_data()
-        logger.info("Maharashtra data pre-loaded successfully.")
-    except Exception as e:
-        logger.error(f"Error pre-loading Maharashtra data: {e}")
-
-    # Startup: Start Telegram Bot in separate thread (non-blocking for FastAPI)
-    try:
-        start_bot_thread()
-        logger.info("Telegram bot started in separate thread.")
-    except Exception as e:
-        logger.error(f"Error starting bot thread: {e}")
+    # Launch background tasks that are non-blocking for startup/health-check
+    asyncio.create_task(background_initialization(app))
     
     yield
     
@@ -86,7 +88,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown: Stop Telegram Bot thread
     try:
-        stop_bot_thread()
+        await run_in_threadpool(stop_bot_thread)
         logger.info("Telegram bot thread stopped.")
     except Exception as e:
         logger.error(f"Error stopping bot thread: {e}")
