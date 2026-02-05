@@ -25,30 +25,23 @@ class ActionPlan(BaseModel):
     x_post: Optional[str] = Field(None, description="X (Twitter) post content")
 
 class ChatRequest(BaseModel):
-    query: str = Field(..., min_length=1, max_length=1000, description="User's chat query")
+    query: str
 
-    @field_validator('query')
-    @classmethod
-    def validate_query(cls, v):
-        if not v.strip():
-            raise ValueError('Query cannot be empty or whitespace only')
-        return v.strip()
+class GrievanceRequest(BaseModel):
+    text: str
 
-class ChatResponse(BaseModel):
-    response: str = Field(..., description="AI assistant's response")
-
-class IssueSummaryResponse(BaseModel):
-    id: int = Field(..., description="Unique issue identifier")
-    category: str = Field(..., description="Issue category")
-    description: str = Field(..., description="Issue description")
-    created_at: datetime = Field(..., description="Issue creation timestamp")
-    image_path: Optional[str] = Field(None, description="Path to uploaded image")
-    status: str = Field(..., description="Issue status")
-    upvotes: int = Field(0, description="Number of upvotes")
-    location: Optional[str] = Field(None, description="Location description")
-    latitude: Optional[float] = Field(None, ge=-90, le=90, description="Latitude coordinate")
-    longitude: Optional[float] = Field(None, ge=-180, le=180, description="Longitude coordinate")
-    # action_plan excluded to optimize payload size
+class IssueResponse(BaseModel):
+    id: int
+    category: str
+    description: str
+    created_at: datetime
+    image_path: Optional[str] = None
+    status: str
+    upvotes: int
+    location: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    action_plan: Optional[Any] = None
 
     model_config = ConfigDict(from_attributes=True)
 

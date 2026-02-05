@@ -2,9 +2,11 @@ import { apiClient } from './client';
 import { fakeRecentIssues } from '../fakeData';
 
 export const issuesApi = {
-  getRecent: async () => {
+  getRecent: async (limit = 10, offset = 0) => {
     try {
-      return await apiClient.get('/api/issues/recent');
+      return await apiClient.get('/api/issues/recent', {
+        params: { limit, offset }
+      });
     } catch (error) {
       console.warn('Failed to fetch recent issues, using fake data', error);
       return fakeRecentIssues;

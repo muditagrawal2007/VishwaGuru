@@ -10,6 +10,9 @@ async def run():
         # Grant camera permissions
         await page.context.grant_permissions(['camera'], origin='http://localhost:5173')
 
+        page.on("console", lambda msg: print(f"CONSOLE: {msg.text}"))
+        page.on("pageerror", lambda exc: print(f"PAGE ERROR: {exc}"))
+
         print("Navigating to Home...")
         try:
              await page.goto("http://localhost:5173/home", timeout=10000)

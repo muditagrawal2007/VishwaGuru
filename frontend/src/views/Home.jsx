@@ -7,7 +7,7 @@ import {
   AlertTriangle, MapPin, Search, Activity, Camera, Trash2, ThumbsUp, Brush,
   Droplets, Zap, Truck, Flame, Dog, XCircle, Lightbulb, TreeDeciduous, Bug,
   Scan, ChevronRight, LayoutGrid, Shield, Leaf, Building, CheckCircle, Trophy, Monitor,
-  Volume2, Users, Waves, Accessibility, Siren, Recycle, Eye, ChevronUp
+  Volume2, Users, Waves, Accessibility, Siren, Recycle, Eye, ChevronUp, Signpost, Car
 } from 'lucide-react';
 
 const CameraCheckModal = ({ onClose }) => {
@@ -52,7 +52,7 @@ const CameraCheckModal = ({ onClose }) => {
   );
 };
 
-const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) => {
+const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote, loadMoreIssues, hasMore, loadingMore }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [showCameraCheck, setShowCameraCheck] = React.useState(false);
@@ -82,6 +82,8 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
         { id: 'blocked', label: t('home.issues.blockedRoad'), icon: <XCircle size={24} />, color: 'text-gray-600', bg: 'bg-gray-50' },
         { id: 'parking', label: t('home.issues.illegalParking'), icon: <Truck size={24} />, color: 'text-rose-600', bg: 'bg-rose-50' },
         { id: 'streetlight', label: t('home.issues.darkStreet'), icon: <Lightbulb size={24} />, color: 'text-slate-600', bg: 'bg-slate-50' },
+        { id: 'traffic-sign', label: t('home.issues.trafficSign'), icon: <Signpost size={24} />, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+        { id: 'abandoned-vehicle', label: t('home.issues.abandonedVehicle'), icon: <Car size={24} />, color: 'text-gray-600', bg: 'bg-gray-50' },
       ]
     },
     {
@@ -145,7 +147,163 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
               <span className="text-4xl font-extrabold block">{totalImpact}</span>
               <span className="text-xs text-indigo-200 uppercase tracking-wider font-semibold">{t('home.issuesSolved')}</span>
             </div>
-          </button>
+        </div>
+        <ChevronRight size={24} />
+    </button>
+
+    {/* Quick Actions Grid */}
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      <button
+        onClick={() => setView('report')}
+        className="flex flex-col items-center justify-center bg-blue-50 border-2 border-blue-100 p-4 rounded-xl hover:bg-blue-100 transition shadow-sm h-32"
+      >
+        <div className="bg-blue-500 text-white p-3 rounded-full mb-2">
+          <AlertTriangle size={24} />
+        </div>
+        <span className="font-semibold text-blue-800 text-sm">Report Issue</span>
+      </button>
+
+      <button
+        onClick={() => setView('pothole')}
+        className="flex flex-col items-center justify-center bg-red-50 border-2 border-red-100 p-4 rounded-xl hover:bg-red-100 transition shadow-sm h-32"
+      >
+        <div className="bg-red-500 text-white p-3 rounded-full mb-2">
+          <Camera size={24} />
+        </div>
+        <span className="font-semibold text-red-800 text-sm">Pothole</span>
+      </button>
+
+      <button
+        onClick={() => setView('garbage')}
+        className="flex flex-col items-center justify-center bg-orange-50 border-2 border-orange-100 p-4 rounded-xl hover:bg-orange-100 transition shadow-sm h-32"
+      >
+        <div className="bg-orange-500 text-white p-3 rounded-full mb-2">
+          <Trash2 size={24} />
+        </div>
+        <span className="font-semibold text-orange-800 text-sm">Garbage</span>
+      </button>
+
+      <button
+        onClick={() => setView('mh-rep')}
+        className="flex flex-col items-center justify-center bg-purple-50 border-2 border-purple-100 p-4 rounded-xl hover:bg-purple-100 transition shadow-sm h-32"
+      >
+        <div className="bg-purple-500 text-white p-3 rounded-full mb-2">
+          <Search size={24} />
+        </div>
+        <span className="font-semibold text-purple-800 text-sm">Find MLA</span>
+      </button>
+
+      <button
+        onClick={() => setView('vandalism')}
+        className="flex flex-col items-center justify-center bg-indigo-50 border-2 border-indigo-100 p-4 rounded-xl hover:bg-indigo-100 transition shadow-sm h-32"
+      >
+        <div className="bg-indigo-500 text-white p-3 rounded-full mb-2">
+          <Brush size={24} />
+        </div>
+        <span className="font-semibold text-indigo-800 text-sm">Graffiti</span>
+      </button>
+
+      <button
+        onClick={() => setView('flood')}
+        className="flex flex-col items-center justify-center bg-cyan-50 border-2 border-cyan-100 p-4 rounded-xl hover:bg-cyan-100 transition shadow-sm h-32"
+      >
+        <div className="bg-cyan-500 text-white p-3 rounded-full mb-2">
+          <Droplets size={24} />
+        </div>
+        <span className="font-semibold text-cyan-800 text-sm">Flood</span>
+      </button>
+
+      <button
+        onClick={() => setView('infrastructure')}
+        className="flex flex-col items-center justify-center bg-yellow-50 border-2 border-yellow-100 p-4 rounded-xl hover:bg-yellow-100 transition shadow-sm h-32"
+      >
+        <div className="bg-yellow-500 text-white p-3 rounded-full mb-2">
+          <Zap size={24} />
+        </div>
+        <span className="font-semibold text-yellow-800 text-sm">Broken Infra</span>
+      </button>
+
+      {/* New Western Style Features */}
+      <button
+        onClick={() => setView('parking')}
+        className="flex flex-col items-center justify-center bg-rose-50 border-2 border-rose-100 p-4 rounded-xl hover:bg-rose-100 transition shadow-sm h-32"
+      >
+        <div className="bg-rose-500 text-white p-3 rounded-full mb-2">
+          <Truck size={24} />
+        </div>
+        <span className="font-semibold text-rose-800 text-sm">Illegal Parking</span>
+      </button>
+
+      <button
+        onClick={() => setView('streetlight')}
+        className="flex flex-col items-center justify-center bg-slate-50 border-2 border-slate-100 p-4 rounded-xl hover:bg-slate-100 transition shadow-sm h-32"
+      >
+        <div className="bg-slate-700 text-white p-3 rounded-full mb-2">
+          <Lightbulb size={24} />
+        </div>
+        <span className="font-semibold text-slate-800 text-sm">Dark Street</span>
+      </button>
+
+      <button
+        onClick={() => setView('fire')}
+        className="flex flex-col items-center justify-center bg-red-100 border-2 border-red-200 p-4 rounded-xl hover:bg-red-200 transition shadow-sm h-32"
+      >
+        <div className="bg-red-600 text-white p-3 rounded-full mb-2">
+          <Flame size={24} />
+        </div>
+        <span className="font-semibold text-red-900 text-sm">Fire/Smoke</span>
+      </button>
+
+      <button
+        onClick={() => setView('animal')}
+        className="flex flex-col items-center justify-center bg-amber-50 border-2 border-amber-100 p-4 rounded-xl hover:bg-amber-100 transition shadow-sm h-32"
+      >
+        <div className="bg-amber-600 text-white p-3 rounded-full mb-2">
+          <Dog size={24} />
+        </div>
+        <span className="font-semibold text-amber-900 text-sm">Stray Animal</span>
+      </button>
+
+      <button
+        onClick={() => setView('blocked')}
+        className="flex flex-col items-center justify-center bg-gray-50 border-2 border-gray-100 p-4 rounded-xl hover:bg-gray-100 transition shadow-sm h-32"
+      >
+        <div className="bg-gray-600 text-white p-3 rounded-full mb-2">
+          <XCircle size={24} />
+        </div>
+        <span className="font-semibold text-gray-800 text-sm">Blocked Road</span>
+      </button>
+
+      <button
+        onClick={() => setView('tree')}
+        className="flex flex-col items-center justify-center bg-green-50 border-2 border-green-100 p-4 rounded-xl hover:bg-green-100 transition shadow-sm h-32"
+      >
+        <div className="bg-green-600 text-white p-3 rounded-full mb-2">
+          <TreeDeciduous size={24} />
+        </div>
+        <span className="font-semibold text-green-800 text-sm">Tree Hazard</span>
+      </button>
+
+      <button
+        onClick={() => setView('pest')}
+        className="flex flex-col items-center justify-center bg-amber-50 border-2 border-amber-100 p-4 rounded-xl hover:bg-amber-100 transition shadow-sm h-32"
+      >
+        <div className="bg-amber-800 text-white p-3 rounded-full mb-2">
+          <Bug size={24} />
+        </div>
+        <span className="font-semibold text-amber-900 text-sm">Pest Control</span>
+      </button>
+
+      <button
+        onClick={() => setView('grievance-analysis')}
+        className="flex flex-col items-center justify-center bg-teal-50 border-2 border-teal-100 p-4 rounded-xl hover:bg-teal-100 transition shadow-sm h-32"
+      >
+        <div className="bg-teal-600 text-white p-3 rounded-full mb-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path><path d="M13 8H7"></path><path d="M17 12H7"></path></svg>
+        </div>
+        <span className="font-semibold text-teal-800 text-sm">Analyze Grievance</span>
+      </button>
+    </div>
 
           {/* Smart Scanner CTA */}
           <button
@@ -278,6 +436,24 @@ const Home = ({ setView, fetchResponsibilityMap, recentIssues, handleUpvote }) =
               </div>
             )}
           </div>
+          {recentIssues.length > 0 && hasMore && (
+            <div className="p-3 border-t border-gray-100 bg-gray-50/50 text-center">
+              <button
+                onClick={loadMoreIssues}
+                disabled={loadingMore}
+                className="text-sm font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50 transition-colors py-1 px-3 rounded-full hover:bg-blue-50"
+              >
+                {loadingMore ? (
+                  <span className="flex items-center gap-2 justify-center">
+                    <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    Loading...
+                  </span>
+                ) : (
+                  'Load More Activity'
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

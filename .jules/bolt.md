@@ -13,3 +13,7 @@
 ## 2025-02-27 - UploadFile Validation Blocking
 **Learning:** `UploadFile` validation using `python-magic` and file seeking is synchronous and CPU/IO bound. In FastAPI async endpoints, this blocks the event loop.
 **Action:** Wrap file validation logic in `run_in_threadpool` and await it.
+
+## 2026-02-04 - Redundant Image Processing Cycles
+**Learning:** Performing validation, resizing, and EXIF stripping as discrete steps in an image pipeline causes multiple redundant Decode-Process-Encode cycles. This is particularly expensive in cloud environments with limited CPU.
+**Action:** Unify all image transformations into a single pass (`process_uploaded_image`) to ensure the image is only decoded and encoded once.
