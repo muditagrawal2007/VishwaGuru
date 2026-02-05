@@ -10,9 +10,10 @@ from backend.database import get_db
 from backend.models import Grievance, EscalationAudit
 from backend.schemas import (
     GrievanceSummaryResponse, EscalationAuditResponse, EscalationStatsResponse,
-    ResponsibilityMapResponse
+    ResponsibilityMapResponse, GrievanceRequest
 )
 from backend.grievance_service import GrievanceService
+from backend.grievance_classifier import get_grievance_classifier
 
 logger = logging.getLogger(__name__)
 
@@ -213,3 +214,14 @@ def get_responsibility_map():
     except Exception as e:
         logger.error(f"Error loading responsibility map: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to load responsibility map")
+
+@router.post("/api/classify-grievance")
+def classify_grievance_endpoint(request: GrievanceRequest):
+    """Classify grievance text into categories"""
+    try:
+        classifier = get_grievance_classifier()
+        category = classifier.predict(request.text)
+        return {"category": category}
+    except Exception as e:
+        logger.error(f"Grievance classification error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Classification service unavailable")

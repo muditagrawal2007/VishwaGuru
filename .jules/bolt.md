@@ -17,3 +17,11 @@
 ## 2026-02-04 - Redundant Image Processing Cycles
 **Learning:** Performing validation, resizing, and EXIF stripping as discrete steps in an image pipeline causes multiple redundant Decode-Process-Encode cycles. This is particularly expensive in cloud environments with limited CPU.
 **Action:** Unify all image transformations into a single pass (`process_uploaded_image`) to ensure the image is only decoded and encoded once.
+
+## 2026-02-05 - Leaderboard Aggregation Caching
+**Learning:** Aggregation queries (`COUNT`, `SUM`, `GROUP BY`) on the primary application tables grow O(N) with the number of reports. On high-traffic civic platforms, these are frequent bottlenecks.
+**Action:** Implement short-lived (5 min) caching for leaderboard results. Use database-level aggregations and column selection (`db.query(cols)`) instead of loading full model instances.
+
+## 2026-02-05 - Schema Inheritance vs Redefinition
+**Learning:** Redefining similar schemas (e.g., `IssueSummaryResponse` vs `IssueResponse`) leads to maintenance overhead and potential inconsistencies in API responses.
+**Action:** Use Pydantic inheritance to define a base summary schema and extend it for detailed views, ensuring consistent data structures across the app.

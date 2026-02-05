@@ -25,12 +25,15 @@ class ActionPlan(BaseModel):
     x_post: Optional[str] = Field(None, description="X (Twitter) post content")
 
 class ChatRequest(BaseModel):
-    query: str
+    query: str = Field(..., min_length=1, max_length=1000, description="Chat query text")
+
+class ChatResponse(BaseModel):
+    response: str
 
 class GrievanceRequest(BaseModel):
     text: str
 
-class IssueResponse(BaseModel):
+class IssueSummaryResponse(BaseModel):
     id: int
     category: str
     description: str
@@ -41,12 +44,11 @@ class IssueResponse(BaseModel):
     location: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    action_plan: Optional[Any] = None
 
     model_config = ConfigDict(from_attributes=True)
 
 class IssueResponse(IssueSummaryResponse):
-    action_plan: Optional[Dict[str, Any]] = Field(None, description="Generated action plan")
+    action_plan: Optional[Union[Dict[str, Any], Any]] = Field(None, description="Generated action plan")
 
 class IssueCreateRequest(BaseModel):
     description: str = Field(..., min_length=10, max_length=1000, description="Issue description")
@@ -98,9 +100,6 @@ class PushSubscriptionRequest(BaseModel):
 class PushSubscriptionResponse(BaseModel):
     id: int = Field(..., description="Subscription ID")
     message: str = Field(..., description="Subscription confirmation")
-
-class DetectionResponse(BaseModel):
-    detections: List[Dict[str, Any]] = Field(..., description="List of detected objects/items")
 
 class DetectionResponse(BaseModel):
     detections: List[Dict[str, Any]] = Field(..., description="List of detected objects/items")

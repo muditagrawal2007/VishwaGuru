@@ -492,10 +492,9 @@ def get_recent_issues(
     # Fetch issues with pagination
     issues = db.query(Issue).options(defer(Issue.action_plan)).order_by(Issue.created_at.desc()).offset(offset).limit(limit).all()
 
-    # Convert to Pydantic models for validation and serialization
-    data = []
-    for i in issues:
-        data.append(IssueSummaryResponse(
+    # Convert to Pydantic models for validation and serialization (Optimized with list comprehension)
+    data = [
+        IssueSummaryResponse(
             id=i.id,
             category=i.category,
             description=i.description[:100] + "..." if len(i.description) > 100 else i.description,
@@ -506,8 +505,9 @@ def get_recent_issues(
             location=i.location,
             latitude=i.latitude,
             longitude=i.longitude
-            # action_plan is deferred and excluded
-        ).model_dump(mode='json'))
+        ).model_dump(mode='json')
+        for i in issues
+    ]
 
     # Thread-safe cache update
     recent_issues_cache.set(data, cache_key)
