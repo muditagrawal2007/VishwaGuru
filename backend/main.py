@@ -1,7 +1,14 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks, Request, Query
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from sqlalchemy.orm import Session
+from sqlalchemy import func
 from contextlib import asynccontextmanager
+from functools import lru_cache
+from typing import List, Optional, Any
+from PIL import Image
+from fastapi.concurrency import run_in_threadpool
 import os
 import sys
 from pathlib import Path
@@ -9,9 +16,12 @@ import httpx
 import logging
 import time
 import magic
-import httpx
+import json
+import shutil
+import uuid
 from backend.grievance_classifier import get_grievance_classifier
 from backend.schemas import GrievanceRequest, ChatRequest, IssueResponse
+from backend.exceptions import EXCEPTION_HANDLERS
 from backend.database import Base, engine, get_db, SessionLocal
 from backend.models import Issue
 from backend.ai_factory import create_all_ai_services
@@ -25,7 +35,7 @@ from backend.pothole_detection import detect_potholes
 from backend.garbage_detection import detect_garbage
 from backend.local_ml_service import detect_infrastructure_local, detect_flooding_local, detect_vandalism_local
 from backend.unified_detection_service import get_detection_status
-from backend.hf_service import (
+from backend.hf_api_service import (
     detect_illegal_parking_clip,
     detect_street_light_clip,
     detect_fire_clip,
@@ -327,42 +337,47 @@ async def chat_endpoint(request: ChatRequest):
 def get_recent_issues(db: Session = Depends(get_db)):
     cached_data = recent_issues_cache.get()
     if cached_data:
-        # Check if cached data is already serialized (list of dicts)
-        # We return JSONResponse directly to bypass FastAPI's Pydantic validation/serialization
-        # which is redundant for cached data that was already validated when stored.
         return JSONResponse(content=cached_data)
 
-    # Fetch last 10 issues
-    issues = db.query(Issue).order_by(Issue.created_at.desc()).limit(10).all()
+    # Optimized query: Fetch only needed columns and truncate description in DB
+    # We explicitly exclude action_plan to save bandwidth/IO
+    query = db.query(
+        Issue.id,
+        Issue.category,
+        Issue.created_at,
+        Issue.image_path,
+        Issue.status,
+        Issue.upvotes,
+        Issue.location,
+        Issue.latitude,
+        Issue.longitude,
+        # Truncate description in SQL.
+        func.substr(Issue.description, 1, 100).label("description_snippet"),
+        func.length(Issue.description).label("description_len")
+    ).order_by(Issue.created_at.desc()).limit(10)
 
-    # Process issues to handle action_plan deserialization if needed
-    # Since action_plan is Text in DB, we should keep it that way for IssueResponse or parse it.
-    # The frontend expects it. IssueResponse defines action_plan as Optional[Any].
+    results = query.all()
 
-    # Convert to Pydantic models for validation and serialization
     data = []
-    for i in issues:
-        # Handle action_plan JSON string
-        action_plan_val = i.action_plan
-        if isinstance(action_plan_val, str) and action_plan_val:
-            try:
-                action_plan_val = json.loads(action_plan_val)
-            except json.JSONDecodeError:
-                pass # Keep as string if not valid JSON
+    for row in results:
+        desc = row.description_snippet or ""
+        # If description was truncated (length > 100), append "..."
+        if (row.description_len or 0) > 100:
+             desc += "..."
 
         data.append(IssueResponse(
-            id=i.id,
-            category=i.category,
-            description=i.description[:100] + "..." if len(i.description) > 100 else i.description,
-            created_at=i.created_at,
-            image_path=i.image_path,
-            status=i.status,
-            upvotes=i.upvotes if i.upvotes is not None else 0,
-            location=i.location,
-            latitude=i.latitude,
-            longitude=i.longitude,
-            action_plan=action_plan_val
-        ).model_dump(mode='json')) # Store as JSON-compatible dict in cache
+            id=row.id,
+            category=row.category,
+            description=desc,
+            created_at=row.created_at,
+            image_path=row.image_path,
+            status=row.status,
+            upvotes=row.upvotes if row.upvotes is not None else 0,
+            location=row.location,
+            latitude=row.latitude,
+            longitude=row.longitude,
+            action_plan=None # Explicitly None as we didn't fetch it
+        ).model_dump(mode='json'))
 
     recent_issues_cache.set(data)
 

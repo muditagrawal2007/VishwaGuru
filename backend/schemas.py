@@ -30,7 +30,7 @@ class ChatRequest(BaseModel):
 class GrievanceRequest(BaseModel):
     text: str
 
-class IssueResponse(BaseModel):
+class IssueSummaryResponse(BaseModel):
     id: int
     category: str
     description: str
@@ -98,9 +98,6 @@ class PushSubscriptionRequest(BaseModel):
 class PushSubscriptionResponse(BaseModel):
     id: int = Field(..., description="Subscription ID")
     message: str = Field(..., description="Subscription confirmation")
-
-class DetectionResponse(BaseModel):
-    detections: List[Dict[str, Any]] = Field(..., description="List of detected objects/items")
 
 class DetectionResponse(BaseModel):
     detections: List[Dict[str, Any]] = Field(..., description="List of detected objects/items")
