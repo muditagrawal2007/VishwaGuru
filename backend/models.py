@@ -1,5 +1,5 @@
 import json
-from sqlalchemy import Column, Integer, String, DateTime, Float, Text, ForeignKey, Enum, Index
+from sqlalchemy import Column, Integer, String, DateTime, Float, Text, ForeignKey, Enum, Index, Boolean
 from sqlalchemy.types import TypeDecorator
 from backend.database import Base
 from sqlalchemy.orm import relationship
@@ -82,11 +82,20 @@ class Grievance(Base):
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), index=True)
     updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
     resolved_at = Column(DateTime, nullable=True)
+    
+    # Closure confirmation fields
+    closure_requested_at = Column(DateTime, nullable=True)
+    closure_confirmation_deadline = Column(DateTime, nullable=True)
+    closure_approved = Column(Boolean, default=False)
+    pending_closure = Column(Boolean, default=False, index=True)
+    
     issue_id = Column(Integer, nullable=True, index=True)
 
     # Relationships
     jurisdiction = relationship("Jurisdiction", back_populates="grievances")
     audit_logs = relationship("EscalationAudit", back_populates="grievance")
+    followers = relationship("GrievanceFollower", back_populates="grievance")
+    closure_confirmations = relationship("ClosureConfirmation", back_populates="grievance")
 
 class SLAConfig(Base):
     __tablename__ = "sla_configs"
@@ -146,3 +155,31 @@ class PushSubscription(Base):
     auth = Column(String)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     issue_id = Column(Integer, nullable=True)  # Optional: subscription for specific issue updates
+
+class GrievanceFollower(Base):
+    __tablename__ = "grievance_followers"
+    __table_args__ = (
+        Index("ix_follower_user_grievance", "user_email", "grievance_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    grievance_id = Column(Integer, ForeignKey("grievances.id"), nullable=False)
+    user_email = Column(String, nullable=False, index=True)
+    followed_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    
+    # Relationship
+    grievance = relationship("Grievance", back_populates="followers")
+
+
+class ClosureConfirmation(Base):
+    __tablename__ = "closure_confirmations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    grievance_id = Column(Integer, ForeignKey("grievances.id"), nullable=False)
+    user_email = Column(String, nullable=False, index=True)
+    confirmation_type = Column(String, nullable=False)  # 'confirmed', 'disputed'
+    reason = Column(Text, nullable=True)  # Optional reason for dispute
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    
+    # Relationship
+    grievance = relationship("Grievance", back_populates="closure_confirmations")
