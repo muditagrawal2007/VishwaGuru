@@ -490,24 +490,39 @@ def get_recent_issues(
         return JSONResponse(content=cached_data)
 
     # Fetch issues with pagination
-    issues = db.query(Issue).options(defer(Issue.action_plan)).order_by(Issue.created_at.desc()).offset(offset).limit(limit).all()
+    # Optimized: Use column projection to fetch only needed fields
+    results = db.query(
+        Issue.id,
+        Issue.category,
+        Issue.description,
+        Issue.created_at,
+        Issue.image_path,
+        Issue.status,
+        Issue.upvotes,
+        Issue.location,
+        Issue.latitude,
+        Issue.longitude
+    ).order_by(Issue.created_at.desc()).offset(offset).limit(limit).all()
 
-    # Convert to Pydantic models for validation and serialization (Optimized with list comprehension)
-    data = [
-        IssueSummaryResponse(
-            id=i.id,
-            category=i.category,
-            description=i.description[:100] + "..." if len(i.description) > 100 else i.description,
-            created_at=i.created_at,
-            image_path=i.image_path,
-            status=i.status,
-            upvotes=i.upvotes if i.upvotes is not None else 0,
-            location=i.location,
-            latitude=i.latitude,
-            longitude=i.longitude
-        ).model_dump(mode='json')
-        for i in issues
-    ]
+    # Convert to Pydantic models for validation and serialization
+    data = []
+    for row in results:
+        # Manually construct dict from named tuple row to avoid full object overhead
+        desc = row.description or ""
+        short_desc = desc[:100] + "..." if len(desc) > 100 else desc
+
+        data.append({
+            "id": row.id,
+            "category": row.category,
+            "description": short_desc,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "image_path": row.image_path,
+            "status": row.status,
+            "upvotes": row.upvotes if row.upvotes is not None else 0,
+            "location": row.location,
+            "latitude": row.latitude,
+            "longitude": row.longitude
+        })
 
     # Thread-safe cache update
     recent_issues_cache.set(data, cache_key)
