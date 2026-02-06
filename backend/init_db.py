@@ -174,6 +174,13 @@ def migrate_db():
             except Exception:
                 pass
 
+            # Add composite index for category+status (grievances) - Optimized for filtering
+            try:
+                conn.execute(text("CREATE INDEX ix_grievances_category_status ON grievances (category, status)"))
+                logger.info("Migrated database: Added composite index on category, status for grievances.")
+            except Exception:
+                pass
+
             conn.commit()
             logger.info("Database migration check completed.")
     except Exception as e:
