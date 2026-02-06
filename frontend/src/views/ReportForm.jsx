@@ -11,7 +11,7 @@ import { detectorsApi } from '../api';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) => {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const locationState = useLocation().state || {};
   const [formData, setFormData] = useState({
     description: locationState.description || '',
@@ -335,7 +335,8 @@ const ReportForm = ({ setView, setLoading, setError, setActionPlan, loading }) =
         setSubmitStatus({ state: 'success', message: 'Report saved offline. Will sync when online.' });
         setActionPlan(fakeActionPlan); // Show fallback plan
         setView('action');
-      } catch (err) {
+      } catch (error) {
+        console.error("Offline save failed", error);
         setSubmitStatus({ state: 'error', message: 'Failed to save offline.' });
         setError('Failed to save report offline.');
       } finally {
