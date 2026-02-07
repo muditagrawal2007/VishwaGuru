@@ -36,6 +36,13 @@ const NoiseDetector = React.lazy(() => import('./NoiseDetector'));
 const CivicEyeDetector = React.lazy(() => import('./CivicEyeDetector'));
 const MyReportsView = React.lazy(() => import('./views/MyReportsView'));
 
+
+// Auth Components
+import { AuthProvider } from './contexts/AuthContext';
+import Login from './views/Login';
+import ProtectedRoute from './components/ProtectedRoute';
+import AdminDashboard from './views/AdminDashboard';
+
 // Create a wrapper component to handle state management
 function AppContent() {
   const navigate = useNavigate();
@@ -52,7 +59,7 @@ function AppContent() {
 
   // Safe navigation helper
   const navigateToView = useCallback((view) => {
-    const validViews = ['home', 'map', 'report', 'action', 'mh-rep', 'pothole', 'garbage', 'vandalism', 'flood', 'infrastructure', 'parking', 'streetlight', 'fire', 'animal', 'blocked', 'tree', 'pest', 'smart-scan', 'grievance-analysis', 'noise', 'safety-check', 'my-reports'];
+    const validViews = ['home', 'map', 'report', 'action', 'mh-rep', 'pothole', 'garbage', 'vandalism', 'flood', 'infrastructure', 'parking', 'streetlight', 'fire', 'animal', 'blocked', 'tree', 'pest', 'smart-scan', 'grievance-analysis', 'noise', 'safety-check', 'my-reports', 'login', 'signup'];
     if (validViews.includes(view)) {
       navigate(view === 'home' ? '/' : `/${view}`);
     } else {
@@ -172,6 +179,17 @@ function AppContent() {
           </div>
         }>
           <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Login initialIsLogin={false} />} />
+            <Route
+              path="/admin/dashboard"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+
             <Route
               path="/"
               element={
@@ -186,10 +204,12 @@ function AppContent() {
             <Route
               path="/map"
               element={
-                <MapView
-                  responsibilityMap={responsibilityMap}
-                  setView={navigateToView}
-                />
+                <ProtectedRoute>
+                  <MapView
+                    responsibilityMap={responsibilityMap}
+                    setView={navigateToView}
+                  />
+                </ProtectedRoute>
               }
             />
             <Route
@@ -273,7 +293,11 @@ function AppContent() {
                 <CivicEyeDetector onBack={() => navigate('/')} />
               </div>
             } />
-            <Route path="/my-reports" element={<MyReportsView />} />
+            <Route path="/my-reports" element={
+              <ProtectedRoute>
+                <MyReportsView />
+              </ProtectedRoute>
+            } />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
@@ -287,7 +311,9 @@ function AppContent() {
 function App() {
   return (
     <Router>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </Router>
   );
 }

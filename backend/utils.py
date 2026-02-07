@@ -14,6 +14,7 @@ from backend.cache import user_upload_cache
 from backend.models import Issue
 from backend.schemas import DetectionResponse
 from backend.pothole_detection import validate_image_for_processing
+from passlib.context import CryptContext
 
 logger = logging.getLogger(__name__)
 
@@ -271,3 +272,13 @@ def save_issue_db(db: Session, issue: Issue):
     db.commit()
     db.refresh(issue)
     return issue
+
+# --- Password Hashing Utils ---
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)

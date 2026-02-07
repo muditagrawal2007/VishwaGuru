@@ -5,6 +5,11 @@ from enum import Enum
 
 class IssueCategory(str, Enum):
     ROAD = "Road"
+
+class UserRole(str, Enum):
+    ADMIN = "admin"
+    USER = "user"
+    OFFICIAL = "official"
     WATER = "Water"
     STREETLIGHT = "Streetlight"
     GARBAGE = "Garbage"
@@ -266,3 +271,32 @@ class ClosureStatusResponse(BaseModel):
     required_confirmations: int = Field(..., description="Number of confirmations needed")
     confirmation_deadline: Optional[datetime] = Field(None, description="Deadline for confirmations")
     days_remaining: Optional[int] = Field(None, description="Days until deadline")
+
+# Auth Schemas
+class UserBase(BaseModel):
+    email: str = Field(..., description="User email")
+    full_name: Optional[str] = Field(None, description="User full name")
+
+class UserCreate(UserBase):
+    password: str = Field(..., min_length=6, description="User password")
+
+class UserLogin(BaseModel):
+    email: str = Field(..., description="User email")
+    password: str = Field(..., description="User password")
+
+class UserResponse(UserBase):
+    id: int
+    role: UserRole
+    is_active: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserResponse
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+    role: Optional[str] = None
