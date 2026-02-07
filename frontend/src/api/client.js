@@ -14,9 +14,11 @@ const getHeaders = (headers = {}) => {
 export const apiClient = {
   setToken: (token) => {
     authToken = token;
+    localStorage.setItem('token', token);
   },
   removeToken: () => {
     authToken = null;
+    localStorage.removeItem('token');
   },
   get: async (endpoint, options = {}) => {
     let url = `${API_URL}${endpoint}`;

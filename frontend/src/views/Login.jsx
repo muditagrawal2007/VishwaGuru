@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
-function Login() {
-    const [isLogin, setIsLogin] = useState(true);
+function Login({ initialIsLogin = true }) {
+    const [isLogin, setIsLogin] = useState(initialIsLogin);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');

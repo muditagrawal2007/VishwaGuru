@@ -279,7 +279,6 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6, description="User password")
-    role: Optional[UserRole] = Field(UserRole.USER, description="User role")
 
 class UserLogin(BaseModel):
     email: str = Field(..., description="User email")

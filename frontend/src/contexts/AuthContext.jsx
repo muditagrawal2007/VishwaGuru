@@ -28,8 +28,8 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (email, password) => {
         const data = await authApi.login(email, password);
+        apiClient.setToken(data.access_token); // Eagerly set token
         setToken(data.access_token);
-        localStorage.setItem('token', data.access_token);
 
         if (data.user) {
             setUser(data.user);
@@ -52,7 +52,6 @@ export const AuthProvider = ({ children }) => {
     const logout = () => {
         setToken(null);
         setUser(null);
-        localStorage.removeItem('token');
         apiClient.removeToken();
     };
 

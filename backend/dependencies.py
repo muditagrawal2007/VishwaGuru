@@ -25,7 +25,7 @@ def get_http_client(request: Request) -> httpx.AsyncClient:
     return request.app.state.http_client
 
 # Auth Dependencies
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     config = get_config()
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -47,12 +47,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         raise credentials_exception
     return user
 
-async def get_current_active_user(current_user: User = Depends(get_current_user)):
+def get_current_active_user(current_user: User = Depends(get_current_user)):
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
-async def get_current_admin_user(current_user: User = Depends(get_current_active_user)):
+def get_current_admin_user(current_user: User = Depends(get_current_active_user)):
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=403, 

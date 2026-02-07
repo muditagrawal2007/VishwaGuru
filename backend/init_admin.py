@@ -4,7 +4,7 @@ from pathlib import Path
 
 # Add project root to path
 current_file = Path(__file__).resolve()
-backend_dir = current_file.parent.parent
+backend_dir = current_file.parent
 repo_root = backend_dir.parent
 sys.path.insert(0, str(repo_root))
 
@@ -34,6 +34,7 @@ def create_admin_user(email, password, full_name="Admin User"):
         db.refresh(new_user)
         print(f"Admin user {email} created successfully.")
     except Exception as e:
+        db.rollback()
         print(f"Error creating admin user: {e}")
     finally:
         db.close()

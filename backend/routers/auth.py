@@ -3,7 +3,6 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import jwt
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -11,6 +10,7 @@ from backend.models import User, UserRole
 from backend.schemas import UserCreate, UserResponse, Token, UserLogin
 from backend.config import get_config
 from backend.dependencies import get_current_active_user
+from backend.utils import verify_password, get_password_hash
 
 router = APIRouter(
     prefix="/auth",
@@ -23,14 +23,7 @@ SECRET_KEY = config.secret_key
 ALGORITHM = config.algorithm
 ACCESS_TOKEN_EXPIRE_MINUTES = config.access_token_expire_minutes
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# --- Utils ---
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password):
-    return pwd_context.hash(password)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -56,7 +49,8 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
         email=user.email,
         hashed_password=hashed_password,
         full_name=user.full_name,
-        role=user.role if user.role else UserRole.USER # Default to USER
+        full_name=user.full_name,
+        role=UserRole.USER # Enforce USER role
     )
     db.add(new_user)
     db.commit()

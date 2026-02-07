@@ -180,7 +180,7 @@ function AppContent() {
         }>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Login />} />
+            <Route path="/signup" element={<Login initialIsLogin={false} />} />
             <Route
               path="/admin/dashboard"
               element={
