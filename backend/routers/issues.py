@@ -7,6 +7,7 @@ from typing import List, Union, Dict, Any
 import uuid
 import os
 import logging
+import hashlib
 from datetime import datetime, timezone
 
 from backend.database import get_db
@@ -93,8 +94,18 @@ async def create_issue(
             # Optimization: Use bounding box to filter candidates in SQL
             min_lat, max_lat, min_lon, max_lon = get_bounding_box(latitude, longitude, 50.0)
 
+            # Performance Boost: Use column projection to avoid loading full model instances
             open_issues = await run_in_threadpool(
-                lambda: db.query(Issue).filter(
+                lambda: db.query(
+                    Issue.id,
+                    Issue.description,
+                    Issue.category,
+                    Issue.latitude,
+                    Issue.longitude,
+                    Issue.upvotes,
+                    Issue.created_at,
+                    Issue.status
+                ).filter(
                     Issue.status == "open",
                     Issue.latitude >= min_lat,
                     Issue.latitude <= max_lat,
@@ -131,15 +142,21 @@ async def create_issue(
                 )
 
                 # Automatically upvote the closest issue and link this report to it
-                closest_issue, _ = nearby_issues_with_distance[0]
-                # Atomic update for upvotes to prevent race conditions using coalesce for safety
-                closest_issue.upvotes = func.coalesce(Issue.upvotes, 0) + 1
-                linked_issue_id = closest_issue.id
+                closest_issue_row, _ = nearby_issues_with_distance[0]
+                linked_issue_id = closest_issue_row.id
 
-                # Update the database with the upvote
+                # Atomic update for upvotes to prevent race conditions
+                # Use query update to avoid fetching the full model instance
+                await run_in_threadpool(
+                    lambda: db.query(Issue).filter(Issue.id == linked_issue_id).update({
+                        Issue.upvotes: func.coalesce(Issue.upvotes, 0) + 1
+                    }, synchronize_session=False)
+                )
+
+                # Commit the upvote
                 await run_in_threadpool(db.commit)
 
-                logger.info(f"Spatial deduplication: Linked new report to existing issue {closest_issue.id}, upvoted to {closest_issue.upvotes}")
+                logger.info(f"Spatial deduplication: Linked new report to existing issue {linked_issue_id}")
 
         except Exception as e:
             logger.error(f"Error during spatial deduplication check: {e}", exc_info=True)
@@ -148,6 +165,17 @@ async def create_issue(
     try:
         # Save to DB only if no nearby issues found or deduplication failed
         if deduplication_info is None or not deduplication_info.has_nearby_issues:
+            # Blockchain feature: calculate integrity hash for the report
+            # Optimization: Fetch only the last hash to maintain the chain with minimal overhead
+            prev_issue = await run_in_threadpool(
+                lambda: db.query(Issue.integrity_hash).order_by(Issue.id.desc()).first()
+            )
+            prev_hash = prev_issue[0] if prev_issue and prev_issue[0] else ""
+
+            # Simple but effective SHA-256 chaining
+            hash_content = f"{description}|{category}|{prev_hash}"
+            integrity_hash = hashlib.sha256(hash_content.encode()).hexdigest()
+
             new_issue = Issue(
                 reference_id=str(uuid.uuid4()),
                 description=description,
@@ -158,7 +186,8 @@ async def create_issue(
                 latitude=latitude,
                 longitude=longitude,
                 location=location,
-                action_plan=None
+                action_plan=None,
+                integrity_hash=integrity_hash
             )
 
             # Offload blocking DB operations to threadpool
@@ -255,7 +284,17 @@ def get_nearby_issues(
         # Optimization: Use bounding box to filter candidates in SQL
         min_lat, max_lat, min_lon, max_lon = get_bounding_box(latitude, longitude, radius)
 
-        open_issues = db.query(Issue).filter(
+        # Performance Boost: Use column projection to avoid loading full model instances
+        open_issues = db.query(
+            Issue.id,
+            Issue.description,
+            Issue.category,
+            Issue.latitude,
+            Issue.longitude,
+            Issue.upvotes,
+            Issue.created_at,
+            Issue.status
+        ).filter(
             Issue.status == "open",
             Issue.latitude >= min_lat,
             Issue.latitude <= max_lat,
@@ -487,27 +526,43 @@ def get_user_issues(
 ):
     """
     Get issues reported by a specific user (identified by email).
+    Optimized: Uses column projection to avoid loading full model instances and large fields.
     """
-    issues = db.query(Issue).filter(Issue.user_email == user_email)\
-        .options(defer(Issue.action_plan))\
+    results = db.query(
+        Issue.id,
+        Issue.category,
+        Issue.description,
+        Issue.created_at,
+        Issue.image_path,
+        Issue.status,
+        Issue.upvotes,
+        Issue.location,
+        Issue.latitude,
+        Issue.longitude
+    ).filter(Issue.user_email == user_email)\
         .order_by(Issue.created_at.desc())\
         .offset(offset).limit(limit).all()
 
-    return [
-        IssueSummaryResponse(
-            id=i.id,
-            category=i.category,
-            description=i.description[:100] + "..." if len(i.description) > 100 else i.description,
-            created_at=i.created_at,
-            image_path=i.image_path,
-            status=i.status,
-            upvotes=i.upvotes if i.upvotes is not None else 0,
-            location=i.location,
-            latitude=i.latitude,
-            longitude=i.longitude
-        ).model_dump(mode='json')
-        for i in issues
-    ]
+    # Convert results to dictionaries for faster serialization and schema compliance
+    data = []
+    for row in results:
+        desc = row.description or ""
+        short_desc = desc[:100] + "..." if len(desc) > 100 else desc
+
+        data.append({
+            "id": row.id,
+            "category": row.category,
+            "description": short_desc,
+            "created_at": row.created_at,
+            "image_path": row.image_path,
+            "status": row.status,
+            "upvotes": row.upvotes if row.upvotes is not None else 0,
+            "location": row.location,
+            "latitude": row.latitude,
+            "longitude": row.longitude
+        })
+
+    return data
 
 @router.get("/api/issues/recent", response_model=List[IssueSummaryResponse])
 def get_recent_issues(
