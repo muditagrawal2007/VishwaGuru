@@ -5,16 +5,16 @@ from enum import Enum
 
 class IssueCategory(str, Enum):
     ROAD = "Road"
-
-class UserRole(str, Enum):
-    ADMIN = "admin"
-    USER = "user"
-    OFFICIAL = "official"
     WATER = "Water"
     STREETLIGHT = "Streetlight"
     GARBAGE = "Garbage"
     COLLEGE_INFRA = "College Infra"
     WOMEN_SAFETY = "Women Safety"
+
+class UserRole(str, Enum):
+    ADMIN = "admin"
+    USER = "user"
+    OFFICIAL = "official"
 
 class IssueStatus(str, Enum):
     OPEN = "open"

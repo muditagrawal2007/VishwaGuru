@@ -1,3 +1,4 @@
+from __future__ import annotations
 from fastapi import UploadFile, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -169,6 +170,7 @@ def process_uploaded_image_sync(file: UploadFile) -> tuple[Image.Image, bytes]:
 
         try:
             img = Image.open(file.file)
+            original_format = img.format
 
             # Resize if needed
             if img.width > 1024 or img.height > 1024:
@@ -183,8 +185,13 @@ def process_uploaded_image_sync(file: UploadFile) -> tuple[Image.Image, bytes]:
 
             # Save to BytesIO
             output = io.BytesIO()
-            # Preserve format or default to JPEG
-            fmt = img.format or 'JPEG'
+            # Preserve format or default to JPEG (handling mode compatibility)
+            # JPEG doesn't support RGBA, so use PNG for RGBA if format not specified
+            if original_format:
+                fmt = original_format
+            else:
+                fmt = 'PNG' if img.mode == 'RGBA' else 'JPEG'
+
             img_no_exif.save(output, format=fmt, quality=85)
             img_bytes = output.getvalue()
 

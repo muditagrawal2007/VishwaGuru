@@ -1,3 +1,4 @@
+from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, Request, BackgroundTasks, status
 from fastapi.responses import JSONResponse
 from fastapi.concurrency import run_in_threadpool
