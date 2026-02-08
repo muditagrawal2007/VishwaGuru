@@ -9,6 +9,12 @@ export const AuthProvider = ({ children }) => {
     const [token, setToken] = useState(localStorage.getItem('token'));
     const [loading, setLoading] = useState(true);
 
+    const logout = () => {
+        setToken(null);
+        setUser(null);
+        apiClient.removeToken();
+    };
+
     useEffect(() => {
         if (token) {
             // Set default header
@@ -47,12 +53,6 @@ export const AuthProvider = ({ children }) => {
 
     const signup = async (userData) => {
         return await authApi.signup(userData);
-    };
-
-    const logout = () => {
-        setToken(null);
-        setUser(null);
-        apiClient.removeToken();
     };
 
     return (

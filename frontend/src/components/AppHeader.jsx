@@ -5,7 +5,6 @@ import { Menu, User, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const AppHeader = () => {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user, logout } = useAuth(); // useAuth returns user, not currentUser
   const [isMenuOpen, setIsMenuOpen] = useState(false);

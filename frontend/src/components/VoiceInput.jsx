@@ -5,6 +5,14 @@ const VoiceInput = ({ onTranscript, language = 'en' }) => {
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState(null);
   const [error, setError] = useState(null);
+  const [isSupported, setIsSupported] = useState(true);
+
+  // Check support once on mount
+  useEffect(() => {
+     if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+        setIsSupported(false);
+     }
+  }, []);
 
   const getLanguageCode = (lang) => {
     const langMap = {
@@ -16,13 +24,12 @@ const VoiceInput = ({ onTranscript, language = 'en' }) => {
   };
 
   useEffect(() => {
+    if (!isSupported) return;
+
     // Check if browser supports SpeechRecognition
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    if (!SpeechRecognition) {
-      setError('Speech recognition not supported in this browser');
-      return;
-    }
+    if (!SpeechRecognition) return;
 
     const recognitionInstance = new SpeechRecognition();
     recognitionInstance.continuous = false;
@@ -55,7 +62,7 @@ const VoiceInput = ({ onTranscript, language = 'en' }) => {
         recognitionInstance.stop();
       }
     };
-  }, [language, onTranscript]);
+  }, [language, onTranscript, isSupported]);
 
   const toggleListening = () => {
     if (!recognition) return;
@@ -66,6 +73,10 @@ const VoiceInput = ({ onTranscript, language = 'en' }) => {
       recognition.start();
     }
   };
+
+  if (!isSupported) {
+      return null; // Or render a disabled state
+  }
 
   if (error) {
     return (
