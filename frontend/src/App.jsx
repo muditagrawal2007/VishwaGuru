@@ -1,6 +1,5 @@
 import React, { useState, useEffect, Suspense, useCallback, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import ChatWidget from './components/ChatWidget';
 import { fakeRecentIssues, fakeResponsibilityMap } from './fakeData';
 import { issuesApi, miscApi } from './api';
 import AppHeader from './components/AppHeader';
