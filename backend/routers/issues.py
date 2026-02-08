@@ -70,10 +70,11 @@ async def create_issue(
             image_path = os.path.join(upload_dir, filename)
 
             # Process image (validate, resize, strip EXIF)
-            processed_image = await process_uploaded_image(image)
+            # Unpack the tuple: (PIL.Image, image_bytes)
+            _, image_bytes = await process_uploaded_image(image)
 
             # Save processed image to disk
-            await run_in_threadpool(save_processed_image, processed_image, image_path)
+            await run_in_threadpool(save_processed_image, image_bytes, image_path)
     except HTTPException:
         # Re-raise HTTP exceptions (from validation)
         raise
