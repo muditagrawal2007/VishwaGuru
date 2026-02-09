@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Suspense, useCallback, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import ChatWidget from './components/ChatWidget';
+import DarkModeToggle from './components/DarkModeToggle';
 import { fakeRecentIssues, fakeResponsibilityMap } from './fakeData';
 import { issuesApi, miscApi } from './api';
 
@@ -73,21 +74,21 @@ const LoadingSpinner = ({ className = "", size = "md", variant = "primary" }) =>
 const ErrorAlert = ({ message, onRetry = null, variant = "error" }) => {
   const config = {
     error: {
-      bg: "bg-red-50",
-      border: "border-red-500",
-      text: "text-red-700",
+      bg: "bg-red-50 dark:bg-red-900/20",
+      border: "border-red-500 dark:border-red-700/50",
+      text: "text-red-700 dark:text-red-300",
       icon: (
-        <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+        <svg className="h-5 w-5 text-red-400 dark:text-red-500" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
         </svg>
       )
     },
     warning: {
-      bg: "bg-yellow-50",
-      border: "border-yellow-500",
-      text: "text-yellow-700",
+      bg: "bg-yellow-50 dark:bg-yellow-900/20",
+      border: "border-yellow-500 dark:border-yellow-700/50",
+      text: "text-yellow-700 dark:text-yellow-300",
       icon: (
-        <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+        <svg className="h-5 w-5 text-yellow-400 dark:text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
       )
@@ -107,7 +108,7 @@ const ErrorAlert = ({ message, onRetry = null, variant = "error" }) => {
           {onRetry && (
             <button
               onClick={onRetry}
-              className="mt-2 text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200 flex items-center gap-1 group"
+              className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors duration-200 flex items-center gap-1 group"
             >
               <span>Try again</span>
               <svg 
@@ -200,7 +201,7 @@ const DetectorWrapper = ({ children, onBack, title = null }) => {
         <div className="w-24"></div> {/* Spacer for alignment */}
       </div>
       
-      <div className="flex-1 bg-gradient-to-br from-gray-50 to-white rounded-2xl p-6 border border-gray-200 shadow-inner">
+      <div className="flex-1 bg-gradient-to-br from-gray-50 dark:from-gray-800 to-white dark:to-gray-900 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-inner dark:shadow-xl">
         {children}
       </div>
     </div>
@@ -221,18 +222,25 @@ const AppHeader = () => {
   }, []);
   
   return (
-    <header className={`sticky top-0 z-40 transition-all duration-500 ${isScrolled ? 'py-4 bg-white/95 backdrop-blur-lg shadow-lg' : 'py-8'}`}>
+    <header className={`sticky top-0 z-40 transition-all duration-500 ${isScrolled ? 'py-4 bg-white/95 dark:bg-[#2d2d2d]/95 backdrop-blur-lg shadow-lg dark:shadow-[0_4px_12px_rgba(0,0,0,0.3)]' : 'py-8 bg-transparent'}`}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center">
-          <div className="inline-block transform transition-all duration-700 hover:scale-[1.03]">
-            <h1 className="text-5xl md:text-6xl font-black bg-gradient-to-r from-orange-500 via-orange-600 to-blue-600 bg-clip-text text-transparent animate-gradient tracking-tighter">
-              VishwaGuru
-            </h1>
-            <div className="h-1.5 w-32 mx-auto mt-4 bg-gradient-to-r from-orange-500 to-blue-500 rounded-full animate-pulse-slow"></div>
+        <div className="flex items-center justify-between">
+          <div className="flex-1 text-center">
+            <div className="inline-block transform transition-all duration-700 hover:scale-[1.03]">
+              <h1 className="text-5xl md:text-6xl font-black bg-gradient-to-r from-orange-500 via-orange-600 to-blue-600 bg-clip-text text-transparent animate-gradient tracking-tighter">
+                VishwaGuru
+              </h1>
+              <div className="h-1.5 w-32 mx-auto mt-4 bg-gradient-to-r from-orange-500 to-blue-500 rounded-full animate-pulse-slow"></div>
+            </div>
+            <p className="text-gray-600 dark:text-gray-400 font-medium mt-4 text-lg md:text-xl max-w-3xl mx-auto leading-relaxed">
+              Empowering Citizens, Solving Problems — A Smart Civic Engagement Platform
+            </p>
           </div>
-          <p className="text-gray-600 font-medium mt-4 text-lg md:text-xl max-w-3xl mx-auto leading-relaxed">
-            Empowering Citizens, Solving Problems — A Smart Civic Engagement Platform
-          </p>
+          
+          {/* Dark Mode Toggle */}
+          <div className="absolute right-4 md:right-8 top-1/2 transform -translate-y-1/2">
+            <DarkModeToggle />
+          </div>
         </div>
       </div>
     </header>
@@ -244,7 +252,7 @@ const AppFooter = () => {
   const currentYear = new Date().getFullYear();
   
   return (
-    <footer className="mt-16 pt-8 pb-12 border-t border-gray-200 relative">
+    <footer className="mt-16 pt-8 pb-12 border-t border-gray-200 dark:border-gray-700 relative transition-colors duration-300">
       <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
         <div className="h-12 w-32 bg-gradient-to-r from-orange-500/20 to-blue-500/20 blur-xl rounded-full"></div>
       </div>
@@ -257,19 +265,19 @@ const AppFooter = () => {
             <div className="h-8 w-8 bg-gradient-to-r from-orange-500 to-blue-500 rounded-full"></div>
           </div>
           
-          <p className="text-gray-500 text-sm mb-3 tracking-wide">
+          <p className="text-gray-500 dark:text-gray-400 text-sm mb-3 tracking-wide transition-colors duration-300">
             &copy; {currentYear} VishwaGuru Civic Platform. All rights reserved.
           </p>
-          <p className="text-gray-400 text-xs max-w-lg mx-auto leading-relaxed">
+          <p className="text-gray-400 dark:text-gray-500 text-xs max-w-lg mx-auto leading-relaxed transition-colors duration-300">
             Committed to transparent governance and community-driven solutions. 
             Making cities smarter, one issue at a time.
           </p>
           
-          <div className="mt-6 flex items-center justify-center space-x-6 text-xs text-gray-400">
-            <a href="/privacy" className="hover:text-blue-600 transition-colors duration-200">Privacy Policy</a>
-            <span className="h-1 w-1 bg-gray-400 rounded-full"></span>
-            <a href="/terms" className="hover:text-blue-600 transition-colors duration-200">Terms of Service</a>
-            <span className="h-1 w-1 bg-gray-400 rounded-full"></span>
+          <div className="mt-6 flex items-center justify-center space-x-6 text-xs text-gray-400 dark:text-gray-500 transition-colors duration-300">
+            <a href="/privacy" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200">Privacy Policy</a>
+            <span className="h-1 w-1 bg-gray-400 dark:bg-gray-600 rounded-full"></span>
+            <a href="/terms" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200">Terms of Service</a>
+            <span className="h-1 w-1 bg-gray-400 dark:bg-gray-600 rounded-full"></span>
             <a href="/contact" className="hover:text-blue-600 transition-colors duration-200">Contact Us</a>
           </div>
         </div>
@@ -486,11 +494,11 @@ function AppContent() {
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-100 text-gray-900 font-sans overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-100 dark:from-[#1a1a1a] dark:via-[#2d2d2d] dark:to-[#1a1a1a] text-gray-900 dark:text-gray-100 font-sans overflow-hidden transition-colors duration-300">
       {/* Animated background elements */}
       <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-orange-300/10 rounded-full blur-3xl animate-pulse-slow"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-300/10 rounded-full blur-3xl animate-pulse-slow animation-delay-1000"></div>
+        <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-orange-300/10 dark:bg-orange-300/5 rounded-full blur-3xl animate-pulse-slow"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-300/10 dark:bg-blue-300/5 rounded-full blur-3xl animate-pulse-slow animation-delay-1000"></div>
       </div>
       
       <FloatingButtonsManager setView={navigateToView} />
@@ -505,11 +513,11 @@ function AppContent() {
             <div className="relative">
               <div className="absolute -inset-1 bg-gradient-to-r from-orange-500/20 to-blue-500/20 rounded-3xl blur-xl opacity-70 animate-gradient-slow"></div>
               
-              <div className="relative bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/50 p-6 md:p-10 transition-all duration-500 hover:shadow-3xl">
+              <div className="relative bg-white/95 dark:bg-[#2d2d2d]/95 backdrop-blur-sm rounded-3xl shadow-2xl dark:shadow-[0_20px_40px_rgba(0,0,0,0.4)] border border-white/50 dark:border-gray-700/50 p-6 md:p-10 transition-all duration-500 hover:shadow-3xl dark:hover:shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
                 {loading && (
                   <div className="my-20">
                     <LoadingSpinner className="mb-4" size="lg" variant="primary" />
-                    <p className="text-gray-600 text-center animate-pulse">
+                    <p className="text-gray-600 dark:text-gray-400 text-center animate-pulse transition-colors duration-300">
                       Loading civic data...
                     </p>
                   </div>
