@@ -1,25 +1,22 @@
 import json
 import os
-import google.generativeai as genai
-from typing import Optional, Callable, Any
 import warnings
+from typing import Optional, Callable, Any
 from functools import lru_cache
-from typing import Optional
 import logging
-
-import google.generativeai as genai
-from async_lru import alru_cache
 import asyncio
-import logging
+from async_lru import alru_cache
+
+# Suppress deprecation warnings from google.generativeai
+# We use a context manager to ensure we only suppress warnings for this specific import
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    import google.generativeai as genai
 
 from backend.exceptions import AIServiceException
 
 # Configure logger
 logger = logging.getLogger(__name__)
-
-# Suppress deprecation warnings from google.generativeai
-warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
-warnings.filterwarnings("ignore", category=DeprecationWarning, module="google.generativeai")
 
 # Configure Gemini
 api_key = os.environ.get("GEMINI_API_KEY")

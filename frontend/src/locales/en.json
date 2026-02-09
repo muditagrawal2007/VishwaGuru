@@ -19,6 +19,8 @@
       "blockedRoad": "Blocked Road",
       "illegalParking": "Illegal Parking",
       "darkStreet": "Dark Street",
+      "trafficSign": "Traffic Sign",
+      "abandonedVehicle": "Abandoned Vehicle",
       "garbage": "Garbage",
       "flood": "Flood",
       "fireSmoke": "Fire/Smoke",

@@ -9,9 +9,10 @@ import sys
 import uvicorn
 from pathlib import Path
 
-# Add backend to Python path
-backend_path = Path(__file__).parent / "backend"
-sys.path.insert(0, str(backend_path))
+# Add project root to Python path to ensure 'backend.*' imports work
+repo_root = Path(__file__).parent.absolute()
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
 
 def validate_environment():
     """Validate required environment variables"""
@@ -71,6 +72,7 @@ def main():
     print(f"📡 Starting server on {host}:{port}")
 
     # Start the server
+    # We use the full module path 'backend.main:app' because we added repo_root to sys.path
     uvicorn.run(
         "backend.main:app",
         host=host,

@@ -1,5 +1,5 @@
 import json
-from sqlalchemy import Column, Integer, String, DateTime, Float, Text, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, DateTime, Float, Text, ForeignKey, Enum, Index, Boolean
 from sqlalchemy.types import TypeDecorator
 from backend.database import Base
 from sqlalchemy.orm import relationship
@@ -45,6 +45,23 @@ class EscalationReason(enum.Enum):
     SEVERITY_UPGRADE = "severity_upgrade"
     MANUAL = "manual"
 
+class UserRole(enum.Enum):
+    ADMIN = "admin"
+    USER = "user"
+    OFFICIAL = "official"
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    full_name = Column(String, nullable=True)
+    role = Column(Enum(UserRole), default=UserRole.USER, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+
 class Jurisdiction(Base):
     __tablename__ = "jurisdictions"
 
@@ -59,6 +76,10 @@ class Jurisdiction(Base):
 
 class Grievance(Base):
     __tablename__ = "grievances"
+    __table_args__ = (
+        Index("ix_grievances_status_lat_lon", "status", "latitude", "longitude"),
+        Index("ix_grievances_status_jurisdiction", "status", "current_jurisdiction_id"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     unique_id = Column(String, unique=True, index=True)  # Auto-generated unique identifier
@@ -68,17 +89,30 @@ class Grievance(Base):
     city = Column(String, nullable=True)
     district = Column(String, nullable=True)
     state = Column(String, nullable=True)
+    latitude = Column(Float, nullable=True, index=True)
+    longitude = Column(Float, nullable=True, index=True)
+    address = Column(String, nullable=True)
     current_jurisdiction_id = Column(Integer, ForeignKey("jurisdictions.id"), nullable=False)
-    assigned_authority = Column(String, nullable=False)
+    assigned_authority = Column(String, nullable=False, index=True)
     sla_deadline = Column(DateTime, nullable=False)
     status = Column(Enum(GrievanceStatus), default=GrievanceStatus.OPEN, index=True)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), index=True)
     updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
     resolved_at = Column(DateTime, nullable=True)
+    
+    # Closure confirmation fields
+    closure_requested_at = Column(DateTime, nullable=True)
+    closure_confirmation_deadline = Column(DateTime, nullable=True)
+    closure_approved = Column(Boolean, default=False)
+    pending_closure = Column(Boolean, default=False, index=True)
+    
+    issue_id = Column(Integer, ForeignKey("issues.id"), nullable=True, index=True)
 
     # Relationships
     jurisdiction = relationship("Jurisdiction", back_populates="grievances")
     audit_logs = relationship("EscalationAudit", back_populates="grievance")
+    followers = relationship("GrievanceFollower", back_populates="grievance")
+    closure_confirmations = relationship("ClosureConfirmation", back_populates="grievance")
 
 class SLAConfig(Base):
     __tablename__ = "sla_configs"
@@ -105,10 +139,13 @@ class EscalationAudit(Base):
 
 class Issue(Base):
     __tablename__ = "issues"
+    __table_args__ = (
+        Index("ix_issues_status_lat_lon", "status", "latitude", "longitude"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     reference_id = Column(String, unique=True, index=True)  # Secure reference for government updates
-    description = Column(String)
+    description = Column(Text)
     category = Column(String, index=True)
     image_path = Column(String)
     source = Column(String)  # 'telegram', 'web', etc.
@@ -117,13 +154,14 @@ class Issue(Base):
     verified_at = Column(DateTime, nullable=True)
     assigned_at = Column(DateTime, nullable=True)
     resolved_at = Column(DateTime, nullable=True)
-    user_email = Column(String, nullable=True)
+    user_email = Column(String, nullable=True, index=True)
     assigned_to = Column(String, nullable=True)  # Government official/department
     upvotes = Column(Integer, default=0, index=True)
     latitude = Column(Float, nullable=True, index=True)
     longitude = Column(Float, nullable=True, index=True)
     location = Column(String, nullable=True)
     action_plan = Column(JSONEncodedDict, nullable=True)
+    integrity_hash = Column(String, nullable=True)  # Blockchain integrity seal
 
 class PushSubscription(Base):
     __tablename__ = "push_subscriptions"
@@ -135,3 +173,31 @@ class PushSubscription(Base):
     auth = Column(String)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     issue_id = Column(Integer, nullable=True)  # Optional: subscription for specific issue updates
+
+class GrievanceFollower(Base):
+    __tablename__ = "grievance_followers"
+    __table_args__ = (
+        Index("ix_follower_user_grievance", "user_email", "grievance_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    grievance_id = Column(Integer, ForeignKey("grievances.id"), nullable=False)
+    user_email = Column(String, nullable=False, index=True)
+    followed_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    
+    # Relationship
+    grievance = relationship("Grievance", back_populates="followers")
+
+
+class ClosureConfirmation(Base):
+    __tablename__ = "closure_confirmations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    grievance_id = Column(Integer, ForeignKey("grievances.id"), nullable=False)
+    user_email = Column(String, nullable=False, index=True)
+    confirmation_type = Column(String, nullable=False)  # 'confirmed', 'disputed'
+    reason = Column(Text, nullable=True)  # Optional reason for dispute
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    
+    # Relationship
+    grievance = relationship("Grievance", back_populates="closure_confirmations")

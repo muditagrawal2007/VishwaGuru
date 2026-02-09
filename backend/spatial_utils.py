@@ -3,7 +3,6 @@ Spatial utilities for geospatial operations and deduplication.
 """
 import math
 from typing import List, Tuple, Optional
-from geopy.distance import geodesic
 from sklearn.cluster import DBSCAN
 import numpy as np
 
@@ -39,11 +38,22 @@ def get_bounding_box(lat: float, lon: float, radius_meters: float) -> Tuple[floa
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """
     Calculate the great circle distance between two points
-    on the earth (specified in decimal degrees)
+    on the earth (specified in decimal degrees) using the Haversine formula.
 
-    Returns distance in meters
+    Returns distance in meters.
     """
-    return geodesic((lat1, lon1), (lat2, lon2)).meters
+    R = 6371000.0  # Earth's radius in meters
+
+    # Convert decimal degrees to radians
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+
+    # Haversine formula
+    a = math.sin(dphi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    return R * c
 
 
 def find_nearby_issues(

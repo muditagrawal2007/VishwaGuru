@@ -21,6 +21,8 @@ firebase-functions
 firebase-admin
 a2wsgi
 # Spatial deduplication dependencies
-geopy
 scikit-learn
 numpy
+pytest
+python-jose[cryptography]
+passlib[bcrypt]
