@@ -29,7 +29,7 @@ from backend.tasks import (
     send_status_notification
 )
 from backend.spatial_utils import get_bounding_box, find_nearby_issues
-from backend.cache import recent_issues_cache
+from backend.cache import recent_issues_cache, nearby_issues_cache
 from backend.hf_api_service import verify_resolution_vqa
 from backend.dependencies import get_http_client
 
@@ -289,6 +289,12 @@ def get_nearby_issues(
     Returns issues within the specified radius, sorted by distance.
     """
     try:
+        # Check cache first
+        cache_key = f"{latitude:.5f}_{longitude:.5f}_{radius}_{limit}"
+        cached_data = nearby_issues_cache.get(cache_key)
+        if cached_data:
+            return cached_data
+
         # Query open issues with coordinates
         # Optimization: Use bounding box to filter candidates in SQL
         min_lat, max_lat, min_lon, max_lon = get_bounding_box(latitude, longitude, radius)
@@ -330,6 +336,9 @@ def get_nearby_issues(
             )
             for issue, distance in nearby_issues_with_distance[:limit]
         ]
+
+        # Update cache
+        nearby_issues_cache.set(nearby_responses, cache_key)
 
         return nearby_responses
 

@@ -106,7 +106,7 @@ class Grievance(Base):
     closure_approved = Column(Boolean, default=False)
     pending_closure = Column(Boolean, default=False, index=True)
     
-    issue_id = Column(Integer, nullable=True, index=True)
+    issue_id = Column(Integer, ForeignKey("issues.id"), nullable=True, index=True)
 
     # Relationships
     jurisdiction = relationship("Jurisdiction", back_populates="grievances")
@@ -145,7 +145,7 @@ class Issue(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     reference_id = Column(String, unique=True, index=True)  # Secure reference for government updates
-    description = Column(String)
+    description = Column(Text)
     category = Column(String, index=True)
     image_path = Column(String)
     source = Column(String)  # 'telegram', 'web', etc.
